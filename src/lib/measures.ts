@@ -146,7 +146,7 @@ const CSV_COLUMNS: { match: RegExp; type: MeasureType; scale?: number }[] = [
   { match: /^steps/i, type: "steps" },
 ];
 
-function splitCsvLine(line: string) {
+export function splitCsvLine(line: string) {
   const out: string[] = [];
   let cur = "";
   let q = false;

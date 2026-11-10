@@ -15,7 +15,8 @@ Tailwind), so keep the code idiomatic and conventional.
 - Next.js 16 App Router, React 19, TypeScript, Tailwind 4. No UI library; shared bits in `src/components/ui.tsx`.
 - **All user data lives in the browser** (IndexedDB via Dexie, `src/lib/db.ts`). No server database.
   Tables: `measurements` (unified: type/date/value/source/ext), `sessions`, `programmes`, `photos` (Blobs),
-  `settings` (key/value; key `goals` holds goal weight + daily calorie/macro targets, see `getGoals`/`useGoals`).
+  `settings` (key/value; key `goals` holds goal weight + daily calorie/macro targets, see `getGoals`/`useGoals`),
+  `nutrition` (one row per local day: calories/protein/carbs/fat + source; see `src/lib/nutrition.ts`).
 - `Shell` renders page content **client-side only** (`useSyncExternalStore` isClient gate). This is deliberate:
   Next 16 rejects `new Date()` during prerender and there is nothing useful to SSR. Keep it that way.
 - Programmes use a plain-text format parsed in `src/lib/measures.ts` (`# Day`, `Name 4x6 rest 90s (note)`,
@@ -32,10 +33,12 @@ Tailwind), so keep the code idiomatic and conventional.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.
 
 ## Roadmap (not built yet)
-1. **Nutrition + MyFitnessPal.** ExpertPT also links to MyFitnessPal for food logging. MFP has no public API for
-   personal use (as far as we found), so: import MFP's "Download Your Data" export (settings → Account on the web
-   site; contains diary entries and daily totals) as CSV, store daily calories/protein/carbs/fat, show intake vs
-   targets and 7-day averages. Manual entry as a fallback. Don't scrape or ask for MFP passwords.
+1. ~~**Nutrition + MyFitnessPal.**~~ Done: `/nutrition` page (intake vs target, 7-day average, calories chart), manual
+   entry and a tolerant CSV importer (`parseNutritionCsv`) for MFP's "Download Your Data" export. The export's exact
+   column layout isn't documented, so the parser finds columns by name and sums rows per day (a dated "Totals" row wins).
+   Why not an API: ExpertPT/Trainerize syncs MFP through a commercial partner integration (MFP's partner API); we found
+   no way for an individual to get those credentials. Don't scrape or ask for MFP passwords. Possible later: an iOS
+   Shortcut / Health Connect export (MFP writes nutrition there) imported as a file; `NutritionDay.source` can grow.
 2. ~~**Goals.**~~ Done: editable in Settings, stored in Dexie `settings`; goal line + % progress on Body.
 3. **Charts.** 3M / 6M / 1Y range chips, weekly-average overlay, weekly-average list under each chart.
 4. Per-exercise progress charts, edit past sessions, workout notes/PR badges in the session UI.

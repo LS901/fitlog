@@ -90,6 +90,18 @@ export interface Goals {
   fat?: number;
 }
 
+/** One day of food intake. Macros are optional because an import may only carry some columns. */
+export interface NutritionDay {
+  /** local calendar day, YYYY-MM-DD (primary key; one row per day) */
+  date: string;
+  calories?: number;
+  /** grams */
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  source: "manual" | "csv";
+}
+
 /** Key/value app settings (e.g. key "goals" holds a `Goals`). */
 export interface Setting {
   key: string;

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from "dexie";
 import type {
   Goals,
   Measurement,
+  NutritionDay,
   ProgressPhoto,
   Programme,
   Setting,
@@ -14,6 +15,7 @@ class FitlogDB extends Dexie {
   programmes!: EntityTable<Programme, "id">;
   photos!: EntityTable<ProgressPhoto, "id">;
   settings!: EntityTable<Setting, "key">;
+  nutrition!: EntityTable<NutritionDay, "date">;
 
   constructor() {
     super("fitlog");
@@ -26,10 +28,19 @@ class FitlogDB extends Dexie {
     this.version(2).stores({
       settings: "key",
     });
+    this.version(3).stores({
+      nutrition: "date",
+    });
   }
 }
 
 export const db = new FitlogDB();
+
+/** Insert or replace whole days of nutrition (one row per date). */
+export async function saveNutritionDays(days: NutritionDay[]) {
+  await db.nutrition.bulkPut(days);
+  return days.length;
+}
 
 const GOALS_KEY = "goals";
 
@@ -76,6 +87,7 @@ export async function exportAll() {
     sessions: await db.sessions.toArray(),
     programmes: await db.programmes.toArray(),
     settings: await db.settings.toArray(),
+    nutrition: await db.nutrition.toArray(),
     photos: photosB64,
   };
 }
@@ -89,7 +101,7 @@ export async function importAll(data: Awaited<ReturnType<typeof exportAll>>) {
   );
   await db.transaction(
     "rw",
-    [db.measurements, db.sessions, db.programmes, db.photos, db.settings],
+    [db.measurements, db.sessions, db.programmes, db.photos, db.settings, db.nutrition],
     async () => {
       await Promise.all([
         db.measurements.clear(),
@@ -97,6 +109,7 @@ export async function importAll(data: Awaited<ReturnType<typeof exportAll>>) {
         db.programmes.clear(),
         db.photos.clear(),
         db.settings.clear(),
+        db.nutrition.clear(),
       ]);
       await db.measurements.bulkAdd(data.measurements ?? []);
       await db.sessions.bulkAdd(data.sessions ?? []);
@@ -104,6 +117,7 @@ export async function importAll(data: Awaited<ReturnType<typeof exportAll>>) {
       await db.photos.bulkAdd(photos);
       // older backups (pre-goals) have no settings
       await db.settings.bulkAdd(data.settings ?? []);
+      await db.nutrition.bulkAdd(data.nutrition ?? []);
     },
   );
 }

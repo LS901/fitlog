@@ -22,6 +22,10 @@ Tailwind), so keep the code idiomatic and conventional.
 - Programmes use a plain-text format parsed in `src/lib/measures.ts` (`# Day`, `Name 4x6 rest 90s (note)`,
   `+` line = superset with the line above, `Rowing 4min` = duration). `programmeToText` must round-trip.
 - Seed programme (ExpertPT Phase 6, 2 Nov – 27 Dec 2026; odd weeks volume, even weeks heavy) is in `src/lib/seed.ts`.
+- Exercise how-to: `src/lib/exercises.ts` + `src/data/exercises.json` + `public/exercises/*.jpg` (photos and instructions from the
+  public-domain free-exercise-db, hand-mapped to the seeded programme's names; `approx` marks a similar-but-not-identical
+  exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted
+  YouTube/Vimeo link stored in `settings` (`exerciseVideos`). Unknown exercises get no description but keep the video options.
 - Withings: OAuth2 + measure sync run in route handlers (`src/app/api/withings/*`, `src/lib/withings.ts`);
   tokens are httpOnly cookies; client pulls rows and writes them to Dexie, de-duplicating on `ext`.
   Needs `WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI` in `.env.local` (see `.env.example`).
@@ -42,6 +46,7 @@ Tailwind), so keep the code idiomatic and conventional.
 2. ~~**Goals.**~~ Done: editable in Settings, stored in Dexie `settings`; goal line + % progress on Body.
 3. ~~**Charts.**~~ Done in `MetricPanel` (Body + Vitals): 3M/6M/1Y/All chips, dashed weekly-average overlay (charts with
    1-2 series only), collapsible weekly-average list. Pure helpers in `src/lib/series.ts`.
-4. Per-exercise progress charts, edit past sessions, workout notes/PR badges in the session UI.
+4. Per-exercise progress charts, workout notes/PR badges in the session UI. (Editing sets/reps on any session, including
+   finished ones, is done.)
 5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.
 6. Tests (Vitest) for the programme parser, CSV parser and `computePRs`.

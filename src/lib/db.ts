@@ -42,6 +42,21 @@ export async function saveNutritionDays(days: NutritionDay[]) {
   return days.length;
 }
 
+const VIDEOS_KEY = "exerciseVideos";
+
+/** User-pasted video links, keyed by `exerciseKey(name)`. */
+export async function getExerciseVideos(): Promise<Record<string, string>> {
+  return ((await db.settings.get(VIDEOS_KEY))?.value as Record<string, string> | undefined) ?? {};
+}
+
+/** Sets (or, with an empty link, clears) the user's video link for an exercise. */
+export async function saveExerciseVideo(key: string, link: string) {
+  const all = await getExerciseVideos();
+  if (link) all[key] = link;
+  else delete all[key];
+  await db.settings.put({ key: VIDEOS_KEY, value: all });
+}
+
 const GOALS_KEY = "goals";
 
 export async function getGoals(): Promise<Goals> {

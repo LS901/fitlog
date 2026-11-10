@@ -14,11 +14,14 @@ import {
 export function Card({
   title,
   action,
+  leading,
   children,
   className = "",
 }: {
   title?: string;
   action?: React.ReactNode;
+  /** shown before the title, e.g. a thumbnail */
+  leading?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -26,10 +29,15 @@ export function Card({
     <section
       className={`rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 ${className}`}
     >
-      {(title || action) && (
-        <div className="mb-3 flex items-center justify-between">
-          {title && (
-            <h2 className="text-sm font-medium text-zinc-300">{title}</h2>
+      {(title || action || leading) && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {(title || leading) && (
+            <div className="flex min-w-0 items-center gap-3">
+              {leading}
+              {title && (
+                <h2 className="text-sm font-medium text-zinc-300">{title}</h2>
+              )}
+            </div>
           )}
           {action}
         </div>

@@ -4,9 +4,14 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
+import { EXERCISE_NAMES } from "@/lib/exercises";
 import { lastSets } from "@/lib/workouts";
 import type { SessionEntry, WorkoutSession } from "@/lib/types";
+import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
+
+/** # | kg | reps | done | remove */
+const SET_GRID = "grid-cols-[1.5rem_1fr_1fr_2.5rem_1.25rem]";
 
 export default function SessionPage() {
   return (
@@ -22,6 +27,7 @@ function Session() {
   const session = useLiveQuery(() => db.sessions.get(id), [id]);
   const [rest, setRest] = useState(0);
   const [newEx, setNewEx] = useState("");
+  const [infoFor, setInfoFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (rest <= 0) return;
@@ -74,7 +80,7 @@ function Session() {
             })}
           </p>
         </div>
-        {rest > 0 && (
+        {rest > 0 && !finished && (
           <button
             onClick={() => setRest(0)}
             className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm tabular-nums text-emerald-400"
@@ -88,6 +94,9 @@ function Session() {
         <Card
           key={ei}
           title={entry.exercise}
+          leading={
+            <ExerciseThumb name={entry.exercise} onOpen={() => setInfoFor(entry.exercise)} />
+          }
           className={
             entry.group !== undefined &&
             (session.entries[ei - 1]?.group === entry.group ||
@@ -109,23 +118,21 @@ function Session() {
           {entry.notes && (
             <p className="mb-2 text-xs text-zinc-500">{entry.notes}</p>
           )}
-          <div className="mb-1 grid grid-cols-[1.5rem_1fr_1fr_2.5rem] gap-2 text-xs text-zinc-500">
+          <div className={`mb-1 grid ${SET_GRID} gap-2 text-xs text-zinc-500`}>
             <span>#</span>
             <span>kg</span>
-            <span>reps</span>
+            <span>{/min/i.test(entry.target ?? "") ? "min" : "reps"}</span>
+            <span />
             <span />
           </div>
           <div className="space-y-2">
             {entry.sets.map((set, si) => (
-              <div
-                key={si}
-                className="grid grid-cols-[1.5rem_1fr_1fr_2.5rem] items-center gap-2"
-              >
+              <div key={si} className={`grid ${SET_GRID} items-center gap-2`}>
                 <span className="text-sm text-zinc-500">{si + 1}</span>
                 <input
                   type="number"
                   inputMode="decimal"
-                  disabled={finished}
+                  aria-label={`Set ${si + 1} weight`}
                   className={`${inputCls} py-2`}
                   value={set.weight || ""}
                   onChange={(e) =>
@@ -138,7 +145,7 @@ function Session() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  disabled={finished}
+                  aria-label={`Set ${si + 1} reps`}
                   className={`${inputCls} py-2`}
                   value={set.reps || ""}
                   onChange={(e) =>
@@ -149,79 +156,99 @@ function Session() {
                   }
                 />
                 <button
-                  disabled={finished}
                   onClick={() => {
                     updateEntries((es) => {
                       es[ei].sets[si].done = !set.done;
                       return es;
                     });
-                    if (!set.done) setRest(entry.rest ?? 90);
+                    // the rest timer only makes sense during a live workout
+                    if (!set.done && !finished) setRest(entry.rest ?? 90);
                   }}
                   className={`h-10 rounded-xl text-sm ${
                     set.done
                       ? "bg-emerald-500 text-zinc-950"
                       : "border border-zinc-700 text-zinc-500"
                   }`}
-                  aria-label="Mark set done"
+                  aria-label={`Mark set ${si + 1} ${set.done ? "not done" : "done"}`}
                 >
                   ✓
                 </button>
+                {entry.sets.length > 1 ? (
+                  <button
+                    aria-label={`Remove set ${si + 1}`}
+                    className="text-zinc-600 active:text-zinc-300"
+                    onClick={() =>
+                      updateEntries((es) => {
+                        es[ei].sets.splice(si, 1);
+                        return es;
+                      })
+                    }
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <span />
+                )}
               </div>
             ))}
           </div>
-          {!finished && (
-            <div className="mt-3 flex justify-between text-xs">
-              <button
-                className="text-zinc-400"
-                onClick={() =>
-                  updateEntries((es) => {
-                    const last = es[ei].sets.at(-1);
-                    es[ei].sets.push({
-                      weight: last?.weight ?? 0,
-                      reps: last?.reps ?? 0,
-                      done: false,
-                    });
-                    return es;
-                  })
-                }
-              >
-                + Add set
-              </button>
-              <button
-                className="text-zinc-600"
-                onClick={() =>
-                  updateEntries((es) => es.filter((_, i) => i !== ei))
-                }
-              >
-                Remove exercise
-              </button>
-            </div>
-          )}
+          <div className="mt-3 flex justify-between text-xs">
+            <button
+              className="text-zinc-400"
+              onClick={() =>
+                updateEntries((es) => {
+                  const last = es[ei].sets.at(-1);
+                  es[ei].sets.push({
+                    weight: last?.weight ?? 0,
+                    reps: last?.reps ?? 0,
+                    done: false,
+                  });
+                  return es;
+                })
+              }
+            >
+              + Add set
+            </button>
+            <button
+              className="text-zinc-600"
+              onClick={() => updateEntries((es) => es.filter((_, i) => i !== ei))}
+            >
+              Remove exercise
+            </button>
+          </div>
         </Card>
       ))}
 
+      <div className="flex gap-2">
+        <input
+          className={inputCls}
+          placeholder="Add exercise"
+          list="exercise-names"
+          value={newEx}
+          onChange={(e) => setNewEx(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addExercise()}
+        />
+        <datalist id="exercise-names">
+          {EXERCISE_NAMES.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+        <button className={btnGhostCls} onClick={addExercise}>
+          Add
+        </button>
+      </div>
+
+      <textarea
+        className={`${inputCls} h-20 text-sm`}
+        placeholder="Notes"
+        defaultValue={session.notes}
+        onBlur={(e) => save({ notes: e.target.value })}
+      />
+
+      {infoFor && <ExerciseModal name={infoFor} onClose={() => setInfoFor(null)} />}
+
       {!finished && (
         <>
-          <div className="flex gap-2">
-            <input
-              className={inputCls}
-              placeholder="Add exercise"
-              value={newEx}
-              onChange={(e) => setNewEx(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addExercise()}
-            />
-            <button className={btnGhostCls} onClick={addExercise}>
-              Add
-            </button>
-          </div>
-
-          <textarea
-            className={`${inputCls} h-20 text-sm`}
-            placeholder="Notes"
-            defaultValue={session.notes}
-            onBlur={(e) => save({ notes: e.target.value })}
-          />
-
           <div className="flex gap-2">
             <button
               className={`${btnCls} flex-1`}

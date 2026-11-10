@@ -20,7 +20,7 @@ self.addEventListener("fetch", (e) => {
   if (url.pathname.startsWith("/api/")) return;
 
   const isStatic =
-    url.pathname.startsWith("/_next/static/") || /\.(png|svg|ico|woff2?)$/.test(url.pathname);
+    url.pathname.startsWith("/_next/static/") || /\.(png|jpe?g|webp|svg|ico|woff2?)$/.test(url.pathname);
 
   if (isStatic) {
     e.respondWith(

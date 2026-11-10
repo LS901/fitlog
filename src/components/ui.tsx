@@ -68,6 +68,32 @@ export const btnGhostCls =
 
 export const COLORS = ["#34d399", "#60a5fa", "#f472b6", "#fbbf24"];
 
+/** Small toggle pill, used for range selectors and on/off switches. */
+export function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs ${
+        active
+          ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+          : "border-zinc-700 text-zinc-400 active:bg-zinc-800"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function TrendChart({
   data,
   series,
@@ -75,7 +101,11 @@ export function TrendChart({
   referenceLine,
 }: {
   data: Record<string, number | string>[];
-  series: { key: string; label: string }[];
+  /**
+   * `color` picks a palette slot (defaults to the series index). `overlay` draws a thin dashed
+   * step line, used for weekly averages on top of the daily readings.
+   */
+  series: { key: string; label: string; color?: number; overlay?: boolean }[];
   height?: number;
   /** horizontal line, e.g. a goal weight; the y-axis stretches to include it */
   referenceLine?: { y: number; label: string };
@@ -83,7 +113,7 @@ export function TrendChart({
   if (data.length < 2) {
     return (
       <p className="py-8 text-center text-sm text-zinc-500">
-        Add at least two entries to see a trend.
+        Not enough entries in this range to show a trend.
       </p>
     );
   }
@@ -125,11 +155,12 @@ export function TrendChart({
           {series.map((s, i) => (
             <Line
               key={s.key}
-              type="monotone"
+              type={s.overlay ? "stepAfter" : "monotone"}
               dataKey={s.key}
               name={s.label}
-              stroke={COLORS[i % COLORS.length]}
-              strokeWidth={2}
+              stroke={COLORS[(s.color ?? i) % COLORS.length]}
+              strokeWidth={s.overlay ? 1.5 : 2}
+              strokeDasharray={s.overlay ? "5 4" : undefined}
               dot={false}
               connectNulls
             />

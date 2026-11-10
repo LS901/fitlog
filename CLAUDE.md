@@ -40,7 +40,8 @@ Tailwind), so keep the code idiomatic and conventional.
    no way for an individual to get those credentials. Don't scrape or ask for MFP passwords. Possible later: an iOS
    Shortcut / Health Connect export (MFP writes nutrition there) imported as a file; `NutritionDay.source` can grow.
 2. ~~**Goals.**~~ Done: editable in Settings, stored in Dexie `settings`; goal line + % progress on Body.
-3. **Charts.** 3M / 6M / 1Y range chips, weekly-average overlay, weekly-average list under each chart.
+3. ~~**Charts.**~~ Done in `MetricPanel` (Body + Vitals): 3M/6M/1Y/All chips, dashed weekly-average overlay (charts with
+   1-2 series only), collapsible weekly-average list. Pure helpers in `src/lib/series.ts`.
 4. Per-exercise progress charts, edit past sessions, workout notes/PR badges in the session UI.
 5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.
 6. Tests (Vitest) for the programme parser, CSV parser and `computePRs`.

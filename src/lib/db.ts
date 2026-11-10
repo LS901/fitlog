@@ -1,8 +1,10 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
+  Goals,
   Measurement,
   ProgressPhoto,
   Programme,
+  Setting,
   WorkoutSession,
 } from "./types";
 
@@ -11,6 +13,7 @@ class FitlogDB extends Dexie {
   sessions!: EntityTable<WorkoutSession, "id">;
   programmes!: EntityTable<Programme, "id">;
   photos!: EntityTable<ProgressPhoto, "id">;
+  settings!: EntityTable<Setting, "key">;
 
   constructor() {
     super("fitlog");
@@ -20,10 +23,23 @@ class FitlogDB extends Dexie {
       programmes: "++id, name",
       photos: "++id, date, label",
     });
+    this.version(2).stores({
+      settings: "key",
+    });
   }
 }
 
 export const db = new FitlogDB();
+
+const GOALS_KEY = "goals";
+
+export async function getGoals(): Promise<Goals> {
+  return ((await db.settings.get(GOALS_KEY))?.value as Goals | undefined) ?? {};
+}
+
+export async function saveGoals(goals: Goals) {
+  await db.settings.put({ key: GOALS_KEY, value: goals });
+}
 
 /** Insert measurements, skipping any whose `ext` id or type+date already exists. */
 export async function addMeasurements(rows: Omit<Measurement, "id">[]) {
@@ -59,6 +75,7 @@ export async function exportAll() {
     measurements: await db.measurements.toArray(),
     sessions: await db.sessions.toArray(),
     programmes: await db.programmes.toArray(),
+    settings: await db.settings.toArray(),
     photos: photosB64,
   };
 }
@@ -72,18 +89,21 @@ export async function importAll(data: Awaited<ReturnType<typeof exportAll>>) {
   );
   await db.transaction(
     "rw",
-    [db.measurements, db.sessions, db.programmes, db.photos],
+    [db.measurements, db.sessions, db.programmes, db.photos, db.settings],
     async () => {
       await Promise.all([
         db.measurements.clear(),
         db.sessions.clear(),
         db.programmes.clear(),
         db.photos.clear(),
+        db.settings.clear(),
       ]);
       await db.measurements.bulkAdd(data.measurements ?? []);
       await db.sessions.bulkAdd(data.sessions ?? []);
       await db.programmes.bulkAdd(data.programmes ?? []);
       await db.photos.bulkAdd(photos);
+      // older backups (pre-goals) have no settings
+      await db.settings.bulkAdd(data.settings ?? []);
     },
   );
 }

@@ -43,3 +43,6 @@ next-env.d.ts
 
 # personal data imports (never commit)
 /data/
+
+# playwright MCP artifacts (screenshots, snapshots, console logs)
+/.playwright-mcp/

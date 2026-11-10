@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { addMeasurements, db, exportAll, importAll } from "@/lib/db";
 import { parseMeasurementCsv } from "@/lib/measures";
+import { GoalsCard } from "@/components/GoalsCard";
 import { Card, btnCls, btnGhostCls } from "@/components/ui";
 
 export default function SettingsPage() {
@@ -107,6 +108,8 @@ function Settings() {
                 : "Withings connection failed. Try again.")}
         </p>
       )}
+
+      <GoalsCard />
 
       <Card title="Withings">
         {!status ? (

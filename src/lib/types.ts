@@ -77,6 +77,25 @@ export interface WorkoutSession {
   entries: SessionEntry[];
 }
 
+/** User-editable goals and daily targets. Every field is optional until the user sets it. */
+export interface Goals {
+  /** goal body weight, kg */
+  weightKg?: number;
+  /** optional starting weight for % progress; defaults to the earliest recorded weight */
+  startWeightKg?: number;
+  /** daily targets */
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
+/** Key/value app settings (e.g. key "goals" holds a `Goals`). */
+export interface Setting {
+  key: string;
+  value: unknown;
+}
+
 export type PhotoLabel = "front" | "side" | "back";
 
 export interface ProgressPhoto {

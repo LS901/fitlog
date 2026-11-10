@@ -14,7 +14,8 @@ Tailwind), so keep the code idiomatic and conventional.
 ## Architecture
 - Next.js 16 App Router, React 19, TypeScript, Tailwind 4. No UI library; shared bits in `src/components/ui.tsx`.
 - **All user data lives in the browser** (IndexedDB via Dexie, `src/lib/db.ts`). No server database.
-  Tables: `measurements` (unified: type/date/value/source/ext), `sessions`, `programmes`, `photos` (Blobs).
+  Tables: `measurements` (unified: type/date/value/source/ext), `sessions`, `programmes`, `photos` (Blobs),
+  `settings` (key/value; key `goals` holds goal weight + daily calorie/macro targets, see `getGoals`/`useGoals`).
 - `Shell` renders page content **client-side only** (`useSyncExternalStore` isClient gate). This is deliberate:
   Next 16 rejects `new Date()` during prerender and there is nothing useful to SSR. Keep it that way.
 - Programmes use a plain-text format parsed in `src/lib/measures.ts` (`# Day`, `Name 4x6 rest 90s (note)`,
@@ -35,8 +36,7 @@ Tailwind), so keep the code idiomatic and conventional.
    personal use (as far as we found), so: import MFP's "Download Your Data" export (settings → Account on the web
    site; contains diary entries and daily totals) as CSV, store daily calories/protein/carbs/fat, show intake vs
    targets and 7-day averages. Manual entry as a fallback. Don't scrape or ask for MFP passwords.
-2. **Goals.** Editable goal weight (shown as a line on the weight chart plus % progress) and daily calorie/macro
-   targets, stored locally.
+2. ~~**Goals.**~~ Done: editable in Settings, stored in Dexie `settings`; goal line + % progress on Body.
 3. **Charts.** 3M / 6M / 1Y range chips, weekly-average overlay, weekly-average list under each chart.
 4. Per-exercise progress charts, edit past sessions, workout notes/PR badges in the session UI.
 5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.

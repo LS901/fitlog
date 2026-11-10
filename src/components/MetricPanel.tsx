@@ -10,6 +10,8 @@ import { Card, Stat, TrendChart, btnCls, inputCls } from "./ui";
 interface Group {
   title: string;
   types: MeasureType[];
+  /** draw a dashed goal line at this value (in the unit of the first type) */
+  goalLine?: number;
 }
 
 /** Chart + latest values + quick-add form for a set of measurement types. */
@@ -64,6 +66,11 @@ export function MetricPanel({
           <TrendChart
             data={buildSeries(rows ?? [], g.types)}
             series={g.types.map((t) => ({ key: t, label: MEASURES[t].label }))}
+            referenceLine={
+              g.goalLine === undefined
+                ? undefined
+                : { y: g.goalLine, label: `Goal ${fmt(g.types[0], g.goalLine)}` }
+            }
           />
         </Card>
       ))}

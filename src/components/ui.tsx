@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -71,10 +72,13 @@ export function TrendChart({
   data,
   series,
   height = 180,
+  referenceLine,
 }: {
   data: Record<string, number | string>[];
   series: { key: string; label: string }[];
   height?: number;
+  /** horizontal line, e.g. a goal weight; the y-axis stretches to include it */
+  referenceLine?: { y: number; label: string };
 }) {
   if (data.length < 2) {
     return (
@@ -104,6 +108,20 @@ export function TrendChart({
               fontSize: 12,
             }}
           />
+          {referenceLine && (
+            <ReferenceLine
+              y={referenceLine.y}
+              ifOverflow="extendDomain"
+              stroke="#fbbf24"
+              strokeDasharray="4 4"
+              label={{
+                value: referenceLine.label,
+                position: "insideTopRight",
+                fill: "#fbbf24",
+                fontSize: 11,
+              }}
+            />
+          )}
           {series.map((s, i) => (
             <Line
               key={s.key}

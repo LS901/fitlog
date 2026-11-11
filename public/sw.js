@@ -44,6 +44,19 @@ self.addEventListener("fetch", (e) => {
         caches.open(CACHE).then((c) => c.put(req, copy));
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match("/"))),
+      .catch(() => offlinePage(req)),
   );
 });
+
+// Pages are static shells that read their query string on the client (e.g. /workouts/session?id=3),
+// so offline, any cached copy of the same path will do for a full page load. Other requests (e.g. RSC
+// payloads) must match exactly; when they fail, Next falls back to a full page load, which lands here.
+async function offlinePage(req) {
+  const exact = await caches.match(req);
+  if (exact || req.mode !== "navigate") return exact;
+  return (
+    (await caches.match(req, { ignoreSearch: true })) ||
+    (await caches.match("/")) ||
+    Response.error()
+  );
+}

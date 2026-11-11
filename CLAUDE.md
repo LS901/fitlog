@@ -32,6 +32,10 @@ Tailwind), so keep the code idiomatic and conventional.
   tokens are httpOnly cookies; client pulls rows and writes them to Dexie, de-duplicating on `ext`.
   Needs `WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI` in `.env.local` (see `.env.example`).
 - CSV import (`parseMeasurementCsv`) accepts a Date column plus Weight / Fat % / Lean mass / Heart rate / etc.
+- Offline: `public/sw.js` (production only) is network-first for pages, cache-first for static assets. Pages that take
+  their input from the query string (`/workouts/session?id=`, `/workouts/exercise?name=`) are static shells, so offline
+  page loads fall back to any cached copy of the same path (`ignoreSearch`). Prefer query params over dynamic segments
+  for new data-driven pages so this keeps working.
 - Google Health / Health Connect has no web API; Withings already syncs into it, so read from Withings instead.
 
 ## Privacy rules

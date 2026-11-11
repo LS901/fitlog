@@ -9,7 +9,9 @@ Tailwind), so keep the code idiomatic and conventional.
 ## Commands
 - `npm run dev` – dev server (http://localhost:3000)
 - `npm run build && npm start` – production build (the service worker only registers in production)
-- `npx tsc --noEmit` and `npx eslint src` – must both be clean before committing
+- `npm test` – Vitest unit tests (`src/**/*.test.ts`, node environment, pure functions only)
+- `npx tsc --noEmit`, `npx eslint src` and `npm test` – must all be clean before committing
+- Fresh clone: `npx next typegen` (or any dev/build) before `tsc`, or `LayoutProps` is missing
 
 ## Architecture
 - Next.js 16 App Router, React 19, TypeScript, Tailwind 4. No UI library; shared bits in `src/components/ui.tsx`.
@@ -52,4 +54,6 @@ Tailwind), so keep the code idiomatic and conventional.
    session's best e1rm (`prSetIndexes`; never on an exercise's first appearance). Per-exercise notes live on
    `SessionEntry.memo` and the latest earlier one shows as "Last note" (`previousMemo`). Session-level notes already existed.
 5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.
-6. Tests (Vitest) for the programme parser, CSV parser and `computePRs`.
+6. ~~**Tests.**~~ Done: Vitest for the programme parser (incl. seed round-trip), measurement + nutrition CSV parsers,
+   `series` helpers and workout logic (`computePRs`, `exerciseHistory`, `prSetIndexes`, `previousMemo`). Keep new
+   logic in pure functions in `src/lib` so it stays testable without IndexedDB.

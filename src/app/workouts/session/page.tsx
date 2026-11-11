@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { EXERCISE_NAMES, exerciseProgressHref, incrementFor } from "@/lib/exercises";
 import { parseRepTarget, suggestionLabel } from "@/lib/progression";
+import { restAfterSet } from "@/lib/rest";
+import { startRest, stopRest } from "@/lib/restTimer";
 import { useSetting } from "@/lib/useSetting";
 import {
   formatSets,
@@ -42,15 +44,8 @@ function Session() {
   // every session, for PR badges, last time / suggestions and carried-forward notes
   const all = useLiveQuery(() => db.sessions.toArray(), []);
   const increments = useSetting("exerciseIncrements", NO_INCREMENTS) ?? NO_INCREMENTS;
-  const [rest, setRest] = useState(0);
   const [newEx, setNewEx] = useState("");
   const [infoFor, setInfoFor] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (rest <= 0) return;
-    const t = setTimeout(() => setRest((r) => r - 1), 1000);
-    return () => clearTimeout(t);
-  }, [rest]);
 
   if (session === undefined) return null;
   if (!session)
@@ -96,14 +91,6 @@ function Session() {
             })}
           </p>
         </div>
-        {rest > 0 && !finished && (
-          <button
-            onClick={() => setRest(0)}
-            className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm tabular-nums text-emerald-400"
-          >
-            Rest {Math.floor(rest / 60)}:{String(rest % 60).padStart(2, "0")}
-          </button>
-        )}
       </div>
 
       {session.entries.map((entry, ei) => (
@@ -134,7 +121,7 @@ function Session() {
             })
           }
           onRemove={() => updateEntries((es) => es.filter((_, i) => i !== ei))}
-          onSetDone={() => setRest(entry.rest ?? 90)}
+          onSetDone={() => startRest(restAfterSet(session.entries, ei))}
         />
       ))}
 
@@ -172,6 +159,7 @@ function Session() {
             className={`${btnCls} flex-1`}
             onClick={async () => {
               await save({ finishedAt: new Date().toISOString() });
+              stopRest();
               router.push("/workouts");
             }}
           >
@@ -182,6 +170,7 @@ function Session() {
             onClick={async () => {
               if (confirm("Discard this workout?")) {
                 await db.sessions.delete(id);
+                stopRest();
                 router.push("/workouts");
               }
             }}

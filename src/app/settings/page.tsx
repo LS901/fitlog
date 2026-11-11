@@ -120,8 +120,8 @@ function Settings() {
           <p className="text-sm text-zinc-400">
             Not configured. Create a free app at developer.withings.com, then set{" "}
             <code>WITHINGS_CLIENT_ID</code>, <code>WITHINGS_CLIENT_SECRET</code> and{" "}
-            <code>WITHINGS_REDIRECT_URI</code> in <code>.env.local</code> (see{" "}
-            <code>.env.example</code>) and restart.
+            <code>WITHINGS_REDIRECT_URI</code> in your Vercel project&apos;s environment variables
+            and redeploy (or in <code>.env.local</code> when running locally).
           </p>
         ) : !status.connected ? (
           <a href="/api/withings/connect" className={`${btnCls} block text-center`}>

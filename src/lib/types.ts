@@ -15,7 +15,7 @@ export type MeasureType =
   | "sleepHours"
   | "steps";
 
-export type MeasureSource = "manual" | "withings" | "csv";
+export type MeasureSource = "manual" | "withings" | "csv" | "trainerize";
 
 export interface Measurement {
   id?: number;
@@ -112,6 +112,8 @@ export interface WorkoutSession {
   dayName?: string;
   notes?: string;
   entries: SessionEntry[];
+  /** stable id from an external source (e.g. "trainerize:123"), used to skip re-imports */
+  ext?: string;
 }
 
 /** User-editable goals and daily targets. Every field is optional until the user sets it. */

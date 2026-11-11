@@ -50,7 +50,15 @@ Tailwind), so keep the code idiomatic and conventional.
   their input from the query string (`/workouts/session?id=`, `/workouts/exercise?name=`) are static shells, so offline
   page loads fall back to any cached copy of the same path (`ignoreSearch`). Prefer query params over dynamic segments
   for new data-driven pages so this keeps working.
-- Google Health / Health Connect has no web API; Withings already syncs into it, so read from Withings instead.
+- ExpertPT history import (Settings → "Import from ExpertPT", `src/components/TrainerizeImport.tsx`,
+  `importTrainerize` in `db.ts`, pure mapping in `src/lib/trainerize.ts`): reads a `fitlog-trainerize` v1 bundle
+  (workouts with per-set weight/reps/time/distance, exercise notes, body stats) exported once from the owner's own
+  Trainerize web account; the bundle lives in git-ignored `/data/trainerize/`. Sessions get `ext: "trainerize:<id>"`
+  (indexed, Dexie v4) so re-imports skip them; day names map "(fewer reps / heavier load)" → "· Heavy"; exercise names
+  are kept verbatim (they match the Phase 6 seed); a body-stat reading is skipped when that day already has one of
+  that type (e.g. from Withings).
+- Google Health: Health Connect has no web API. Google's new Google Health API (Fitbit Web API replacement, Nov 2026)
+  is web/OAuth but not onboarding new projects yet; Withings already covers scale/BP, so read from Withings for now.
 
 ## Privacy rules
 - Never commit personal data. `/data/` and `.env*` (except `.env.example`) are gitignored.

@@ -1,4 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
+import { localDay } from "./nutrition";
+import { convertTrainerize, type TrainerizeBundle } from "./trainerize";
 import type {
   Goals,
   Measurement,
@@ -30,6 +32,10 @@ class FitlogDB extends Dexie {
     });
     this.version(3).stores({
       nutrition: "date",
+    });
+    // ext: id from an external source (e.g. Trainerize), to skip re-imports
+    this.version(4).stores({
+      sessions: "++id, startedAt, finishedAt, ext",
     });
   }
 }
@@ -157,5 +163,40 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     r.onload = () => resolve(r.result as string);
     r.onerror = reject;
     r.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Adds an ExpertPT/Trainerize export. Additive and safe to repeat: sessions already imported (same
+ * `ext`) are skipped, and a body-stat reading is skipped when that day already has one of the same
+ * type from any source (e.g. the same weigh-in synced from Withings).
+ */
+export async function importTrainerize(bundle: TrainerizeBundle) {
+  const { sessions, measurements } = convertTrainerize(bundle);
+  return db.transaction("rw", db.sessions, db.measurements, async () => {
+    const have = new Set(
+      (await db.sessions.where("ext").anyOf(sessions.map((s) => s.ext!)).toArray()).map((s) => s.ext),
+    );
+    const newSessions = sessions.filter((s) => !have.has(s.ext));
+    await db.sessions.bulkAdd(newSessions);
+
+    const types = [...new Set(measurements.map((m) => m.type))];
+    const existing = await db.measurements.where("type").anyOf(types).toArray();
+    const taken = new Set(existing.map((m) => `${m.type}|${localDay(new Date(m.date))}`));
+    const exts = new Set(existing.map((m) => m.ext).filter(Boolean));
+    const newMeasurements = measurements.filter((m) => {
+      const key = `${m.type}|${localDay(new Date(m.date))}`;
+      if (exts.has(m.ext) || taken.has(key)) return false;
+      taken.add(key);
+      return true;
+    });
+    await db.measurements.bulkAdd(newMeasurements);
+
+    return {
+      sessionsAdded: newSessions.length,
+      sessionsSkipped: sessions.length - newSessions.length,
+      measurementsAdded: newMeasurements.length,
+      measurementsSkipped: measurements.length - newMeasurements.length,
+    };
   });
 }

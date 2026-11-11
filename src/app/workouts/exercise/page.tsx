@@ -21,6 +21,12 @@ export default function ExerciseProgressPage() {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Chart label: "3 Nov", or "Nov 24" once the history spans most of a year (so 2024 and 2026 differ). */
+const dateLabel = (longSpan: boolean) => (iso: string) =>
+  longSpan
+    ? new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "2-digit" })
+    : shortDate(iso);
+
 function ExerciseProgress() {
   const router = useRouter();
   const name = useSearchParams().get("name") ?? "";
@@ -52,6 +58,10 @@ function ExerciseProgress() {
   );
   const first = history[0];
   const last = history.at(-1);
+  const axisLabel = dateLabel(
+    shown.length > 1 &&
+      new Date(shown.at(-1)!.date).getTime() - new Date(shown[0].date).getTime() > 300 * 864e5,
+  );
 
   return (
     <div className="space-y-4 pt-2">
@@ -119,7 +129,7 @@ function ExerciseProgress() {
           <Card title={weighted ? "Strength" : `${repUnit === "min" ? "Duration" : "Reps"}`}>
             <TrendChart
               data={shown.map((p) => ({
-                label: shortDate(p.date),
+                label: axisLabel(p.date),
                 e1rm: round1(p.e1rm),
                 top: p.topWeight,
                 reps: p.topReps,
@@ -140,7 +150,7 @@ function ExerciseProgress() {
               <TrendChart
                 height={140}
                 data={shown.map((p) => ({
-                  label: shortDate(p.date),
+                  label: axisLabel(p.date),
                   volume: Math.round(p.volume),
                 }))}
                 series={[{ key: "volume", label: "Volume (kg)", color: 1 }]}

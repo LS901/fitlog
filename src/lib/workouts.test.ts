@@ -4,7 +4,10 @@ import {
   computePRs,
   doneSets,
   exerciseHistory,
+  planExercise,
   prSetIndexes,
+  prefillSets,
+  variantHistory,
   previousMemo,
   sessionVolume,
 } from "./workouts";
@@ -156,5 +159,88 @@ describe("session totals", () => {
     ]);
     expect(sessionVolume(s)).toBe(940);
     expect(doneSets(s)).toBe(2);
+  });
+});
+
+describe("name matching and warm-ups", () => {
+  it("matches names ignoring case, spaces and punctuation", () => {
+    const h = exerciseHistory(
+      [session("2026-11-02", [{ exercise: "Leg-extension", sets: [set(40, 10)] }])],
+      "leg extension",
+    );
+    expect(h).toHaveLength(1);
+  });
+
+  it("leaves warm-up sets out of history, PRs and volume", () => {
+    const s = session("2026-11-02", [
+      {
+        exercise: "Squat",
+        sets: [{ weight: 140, reps: 5, done: true, kind: "warmup" }, set(100, 5)],
+      },
+    ]);
+    expect(exerciseHistory([s], "Squat")[0].topWeight).toBe(100);
+    expect(computePRs([s])[0].weight).toBe(100);
+    expect(sessionVolume(s)).toBe(500);
+    expect(doneSets(s)).toBe(1);
+  });
+});
+
+describe("planning the next session", () => {
+  const day = (d: string, dayName: string, weight: number, reps: number) => ({
+    ...session(d, [{ exercise: "Deadlift", effort: "good" as const, sets: [set(weight, reps), set(weight, reps)] }]),
+    dayName,
+  });
+  const heavy = day("2026-11-03", "Session 1 · Heavy", 100, 6);
+  const volume = day("2026-11-10", "Session 1 · Volume", 80, 8);
+
+  it("follows the same programme day, falling back to any history", () => {
+    const h = exerciseHistory([heavy, volume], "Deadlift");
+    expect(variantHistory(h, "Session 1 · Heavy").map((p) => p.topWeight)).toEqual([100]);
+    expect(variantHistory(h, "Session 9").map((p) => p.topWeight)).toEqual([100, 80]);
+    expect(variantHistory(h).at(-1)?.effort).toBe("good");
+  });
+
+  it("prefills a heavy day from the last heavy day, with the suggested weight", () => {
+    const plan = planExercise([heavy, volume], "Deadlift", {
+      dayName: "Session 1 · Heavy",
+      target: "4×6",
+      increment: 5,
+    });
+    expect(plan.last?.topWeight).toBe(100);
+    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 105, reps: 6 });
+    expect(prefillSets(4, plan, "4×6")).toEqual(
+      Array.from({ length: 4 }, () => ({ weight: 105, reps: 6, done: false })),
+    );
+  });
+
+  it("ignores sessions that started after `before`", () => {
+    const plan = planExercise([heavy, volume], "Deadlift", {
+      target: "4×8",
+      increment: 5,
+      before: "2026-11-05T00:00:00.000Z",
+    });
+    expect(plan.last?.topWeight).toBe(100);
+  });
+
+  it("keeps last time's per-set weights when only the reps change", () => {
+    const pyramid = session("2026-11-03", [
+      { exercise: "Bench", sets: [set(80, 9), set(80, 8), set(75, 8)] },
+    ]);
+    const plan = planExercise([pyramid], "Bench", { target: "3×8-10", increment: 2.5 });
+    expect(plan.suggestion?.action).toBe("reps");
+    expect(prefillSets(3, plan, "3×8-10").map((s) => [s.weight, s.reps])).toEqual([
+      [80, 9],
+      [80, 9],
+      [75, 9],
+    ]);
+  });
+
+  it("with no history, starts reps at the bottom of the target and leaves weight blank", () => {
+    const plan = planExercise([], "Bench", { target: "3×8-12", increment: 2.5 });
+    expect(plan).toEqual({ last: undefined, suggestion: null });
+    expect(prefillSets(3, plan, "3×8-12")).toEqual(
+      Array.from({ length: 3 }, () => ({ weight: 0, reps: 8, done: false })),
+    );
+    expect(prefillSets(0, plan)).toHaveLength(1);
   });
 });

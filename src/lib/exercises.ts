@@ -1,4 +1,5 @@
 import raw from "@/data/exercises.json";
+import { defaultIncrement } from "./progression";
 
 /**
  * Exercise reference data: photos, muscles and step-by-step instructions from the public-domain
@@ -96,3 +97,13 @@ export function isWebUrl(link: string): boolean {
 /** URL of an exercise's progress page. */
 export const exerciseProgressHref = (name: string) =>
   `/workouts/exercise?name=${encodeURIComponent(name)}`;
+
+/**
+ * Smallest weight jump for an exercise: the user's override (Settings, keyed by `exerciseKey`) or a
+ * default from the library's equipment field.
+ */
+export function incrementFor(name: string, overrides: Record<string, number> = {}): number {
+  const own = overrides[exerciseKey(name)];
+  if (typeof own === "number" && own >= 0) return own;
+  return defaultIncrement(name, findExercise(name)?.info.equipment);
+}

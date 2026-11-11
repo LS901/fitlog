@@ -84,7 +84,12 @@ export interface SetLog {
   weight: number;
   reps: number;
   done: boolean;
+  /** warm-up sets are logged but left out of PRs, volume and progression */
+  kind?: "warmup";
 }
+
+/** How an exercise felt, tapped after the sets; sharpens progression suggestions. */
+export type Effort = "easy" | "good" | "hard";
 
 export interface SessionEntry {
   exercise: string;
@@ -95,6 +100,7 @@ export interface SessionEntry {
   notes?: string;
   /** the user's own note for this exercise in this session (e.g. "seat on 4"); carried forward as a hint */
   memo?: string;
+  effort?: Effort;
   sets: SetLog[];
 }
 

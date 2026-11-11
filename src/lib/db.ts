@@ -42,6 +42,20 @@ export async function saveNutritionDays(days: NutritionDay[]) {
   return days.length;
 }
 
+/** Reads a key from the `settings` table, or `fallback` when it isn't set. */
+export async function getSetting<T>(key: string, fallback: T): Promise<T> {
+  const row = await db.settings.get(key);
+  return row === undefined ? fallback : (row.value as T);
+}
+
+export async function setSetting(key: string, value: unknown) {
+  await db.settings.put({ key, value });
+}
+
+/** Per-exercise weight jumps the user has set, keyed by `exerciseKey(name)`. */
+export const getExerciseIncrements = () =>
+  getSetting<Record<string, number>>("exerciseIncrements", {});
+
 const VIDEOS_KEY = "exerciseVideos";
 
 /** User-pasted video links, keyed by `exerciseKey(name)`. */

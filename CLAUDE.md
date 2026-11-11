@@ -38,7 +38,7 @@ Tailwind), so keep the code idiomatic and conventional.
 - Never commit personal data. `/data/` and `.env*` (except `.env.example`) are gitignored.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.
 
-## Roadmap (not built yet)
+## Roadmap
 1. ~~**Nutrition + MyFitnessPal.**~~ Done: `/nutrition` page (intake vs target, 7-day average, calories chart), manual
    entry and a tolerant CSV importer (`parseNutritionCsv`) for MFP's "Download Your Data" export. The export's exact
    column layout isn't documented, so the parser finds columns by name and sums rows per day (a dated "Totals" row wins).
@@ -53,7 +53,11 @@ Tailwind), so keep the code idiomatic and conventional.
    list, each session card ("Progress →") and the how-to modal. Session cards badge the set that beats every earlier
    session's best e1rm (`prSetIndexes`; never on an exercise's first appearance). Per-exercise notes live on
    `SessionEntry.memo` and the latest earlier one shows as "Last note" (`previousMemo`). Session-level notes already existed.
-5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.
+5. ~~**Photos.**~~ Done: multi-select import goes to a review grid (per-photo front/side/back + date, "set all"), dated
+   from EXIF DateTimeOriginal + OffsetTimeOriginal (`src/lib/exif.ts`, a tiny dependency-free JPEG parser) with the
+   file mtime as a flagged fallback. Photos are downscaled to 2000px JPEG before storing (`shrinkPhoto`, keeps the
+   original if it can't decode or wouldn't shrink). All/Front/Side/Back tabs, grouped by day; tap one to relabel/redate,
+   two to compare (shows the gap between them).
 6. ~~**Tests.**~~ Done: Vitest for the programme parser (incl. seed round-trip), measurement + nutrition CSV parsers,
    `series` helpers and workout logic (`computePRs`, `exerciseHistory`, `prSetIndexes`, `previousMemo`). Keep new
    logic in pure functions in `src/lib` so it stays testable without IndexedDB.

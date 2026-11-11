@@ -17,11 +17,13 @@ On your phone, open the deployed URL and use "Add to Home Screen". (Service work
 ## What's in it
 
 - **Train** – programmes (text editor: `# Day`, `Name 4x6 rest 90s (note)`, `+` to superset), live session logging
-  with per-exercise rest timer, previous weights prefilled, history, estimated-1RM bests.
+  with per-exercise rest timer, previous weights prefilled, history, estimated-1RM bests, PR badges, per-exercise
+  notes and a progress page per exercise (1RM / top set / volume charts).
   Seeded with ExpertPT Phase 6 (2 Nov – 27 Dec 2026); odd weeks = volume, even weeks = heavy.
 - **Body** – weight, body fat, muscle mass, tape measurements, trend charts.
 - **Vitals** – resting HR, blood pressure, SpO₂, sleep, steps.
-- **Photos** – dated progress photos with side-by-side compare (stored on-device).
+- **Photos** – bulk import from the camera roll (dated from EXIF), front/side/back tabs, side-by-side compare
+  (stored on-device, resized to save space).
 - **Settings** – Withings sync, CSV import, JSON backup/restore.
 
 ## Withings sync

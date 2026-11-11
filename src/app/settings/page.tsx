@@ -2,7 +2,15 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { addMeasurements, db, exportAll, importAll } from "@/lib/db";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  BACKUP_REMINDER_DAYS,
+  backupStatus,
+  getLastBackup,
+  saveBackup,
+  setLastBackup,
+} from "@/lib/backup";
+import { addMeasurements, db, importAll } from "@/lib/db";
 import { parseMeasurementCsv } from "@/lib/measures";
 import { GoalsCard } from "@/components/GoalsCard";
 import { Card, btnCls, btnGhostCls } from "@/components/ui";
@@ -74,19 +82,13 @@ function Settings() {
     if (csvRef.current) csvRef.current.value = "";
   };
 
-  const backup = async () => {
-    const blob = new Blob([JSON.stringify(await exportAll())], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `fitlog-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
   const restore = async (f?: File) => {
     if (!f || !confirm("Restoring replaces everything currently in the app. Continue?")) return;
     try {
-      await importAll(JSON.parse(await f.text()));
+      const data = JSON.parse(await f.text());
+      await importAll(data);
+      // the app now matches that backup, so it counts as backed up as of then
+      if (typeof data.exportedAt === "string") await setLastBackup(data.exportedAt);
       setMsg("Backup restored.");
     } catch {
       setMsg("That file isn't a valid Fitlog backup.");
@@ -171,8 +173,14 @@ function Settings() {
       </Card>
 
       <Card title="Backup">
+        <BackupInfo />
         <div className="flex gap-2">
-          <button className={`${btnGhostCls} flex-1`} onClick={backup}>
+          <button
+            className={`${btnGhostCls} flex-1`}
+            onClick={async () => {
+              if (await saveBackup()) setMsg("Backup saved.");
+            }}
+          >
             Export backup
           </button>
           <button className={`${btnGhostCls} flex-1`} onClick={() => jsonRef.current?.click()}>
@@ -187,10 +195,65 @@ function Settings() {
           />
         </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Everything lives in this browser&apos;s storage. Export regularly, especially before
-          clearing site data or switching phones.
+          Everything lives in this browser&apos;s storage. Export regularly (on a phone, save it
+          to iCloud Drive / Google Drive), especially before clearing site data or switching
+          phones.
         </p>
       </Card>
     </div>
+  );
+}
+
+const mb = (bytes: number) =>
+  bytes < 1e6 ? `${Math.max(1, Math.round(bytes / 1e3))} KB` : `${(bytes / 1e6).toFixed(1)} MB`;
+
+/** Last backup date, storage protection and usage. */
+function BackupInfo() {
+  const last = useLiveQuery(async () => ({ at: await getLastBackup() }), []);
+  const [storage, setStorage] = useState<{ persisted?: boolean; usage?: number }>({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const persisted = await navigator.storage?.persisted?.();
+        const est = await navigator.storage?.estimate?.();
+        setStorage({ persisted, usage: est?.usage });
+      } catch {
+        /* unsupported */
+      }
+    })();
+  }, []);
+
+  if (!last) return null;
+  const { daysSince } = backupStatus(last.at, true);
+  return (
+    <dl className="mb-3 space-y-1 text-sm">
+      <div className="flex justify-between gap-3">
+        <dt className="text-zinc-400">Last backup</dt>
+        <dd className={daysSince === undefined || daysSince >= BACKUP_REMINDER_DAYS ? "text-amber-300" : ""}>
+          {daysSince === undefined
+            ? "Never"
+            : daysSince === 0
+              ? "Today"
+              : `${daysSince} day${daysSince === 1 ? "" : "s"} ago`}
+        </dd>
+      </div>
+      {storage.persisted !== undefined && (
+        <div className="flex justify-between gap-3">
+          <dt className="text-zinc-400">Storage</dt>
+          <dd className={storage.persisted ? "" : "text-amber-300"}>
+            {storage.persisted ? "Protected" : "Browser may clear it"}
+            {storage.usage !== undefined && (
+              <span className="text-zinc-500"> · {mb(storage.usage)} used</span>
+            )}
+          </dd>
+        </div>
+      )}
+      {storage.persisted === false && (
+        <p className="text-xs text-zinc-500">
+          Installing Fitlog to your home screen usually makes storage protected.
+        </p>
+      )}
+    </dl>
   );
 }

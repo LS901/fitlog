@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
+import { requestPersistentStorage } from "@/lib/backup";
 import { seedIfEmpty } from "@/lib/seed";
 
 const NAV = [
@@ -25,6 +26,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     seedIfEmpty();
+    // all data is on-device, so ask the browser not to evict it
+    requestPersistentStorage();
   }, []);
 
   useEffect(() => {

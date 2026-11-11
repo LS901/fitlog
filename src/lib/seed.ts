@@ -81,20 +81,13 @@ const FLAG = "fitlog.seeded.v1";
 export async function seedIfEmpty() {
   try {
     if (localStorage.getItem(FLAG)) return;
+    // Check-and-add in one transaction (concurrent calls queue behind it), and only mark as seeded
+    // once it has committed: setting the flag first lost the seed if the first page load was cut short.
+    await db.transaction("rw", db.programmes, async () => {
+      if ((await db.programmes.count()) === 0) await db.programmes.add(PHASE_6_PROGRAMME);
+    });
     localStorage.setItem(FLAG, "1");
-    if ((await db.programmes.count()) === 0) {
-      await db.programmes.add(PHASE_6_PROGRAMME);
-    }
   } catch {
     /* storage unavailable: skip seeding */
   }
-}
-
-/** 1-based week of the phase for a date, or null if outside it. */
-export function phaseWeek(phase: Programme["phase"], now = new Date()) {
-  if (!phase) return null;
-  const start = new Date(phase.start + "T00:00:00");
-  const w = Math.floor((now.getTime() - start.getTime()) / (7 * 864e5)) + 1;
-  if (w < 1 || w > phase.weeks) return null;
-  return { week: w, focus: w % 2 === 1 ? "volume" : "heavy" } as const;
 }

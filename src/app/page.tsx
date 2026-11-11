@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { MEASURES, fmt, shortDate } from "@/lib/measures";
-import { phaseWeek } from "@/lib/seed";
+import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
 import { computePRs, doneSets } from "@/lib/workouts";
 import type { MeasureType } from "@/lib/types";
+import { BackupReminder } from "@/components/BackupReminder";
 import { Card, Stat, TrendChart } from "@/components/ui";
 
 const startOfWeek = () => {
@@ -37,7 +38,7 @@ export default function Home() {
 
   const weekStart = startOfWeek().toISOString();
   const thisWeek = sessions?.filter((s) => s.finishedAt && s.startedAt >= weekStart) ?? [];
-  const phaseProg = programmes?.find((p) => p.phase && phaseWeek(p.phase));
+  const phaseProg = programmes && currentPhaseProgramme(programmes);
   const pw = phaseProg ? phaseWeek(phaseProg.phase) : null;
   const prs = sessions ? computePRs(sessions).slice(0, 3) : [];
   const lastW = weights?.at(-1);
@@ -56,8 +57,13 @@ export default function Home() {
         </h1>
         {pw && phaseProg && (
           <p className="text-sm text-zinc-400">
-            {phaseProg.name} · week {pw.week} of {phaseProg.phase!.weeks} ·{" "}
-            <span className="text-emerald-400">{pw.focus} week</span>
+            {phaseProg.name} · week {pw.week} of {phaseProg.phase!.weeks}
+            {pw.focus && (
+              <>
+                {" "}
+                · <span className="text-emerald-400">{pw.focus} week</span>
+              </>
+            )}
           </p>
         )}
       </div>
@@ -73,6 +79,8 @@ export default function Home() {
           {inProgress ? "Resume workout →" : "Start a workout →"}
         </div>
       </Link>
+
+      <BackupReminder />
 
       <div className="grid grid-cols-2 gap-3">
         <Stat

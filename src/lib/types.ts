@@ -48,8 +48,32 @@ export interface Programme {
   id?: number;
   name: string;
   days: ProgrammeDay[];
-  /** optional periodised phase: odd weeks = volume, even weeks = heavy */
-  phase?: { start: string; weeks: number };
+  /**
+   * Optional dated phase (see `src/lib/phases.ts`). `start` is a local YYYY-MM-DD (a Monday by
+   * default). Unless `alternate` is false, odd weeks are volume and even weeks are heavy.
+   */
+  phase?: { start: string; weeks: number; alternate?: boolean };
+  /** what the user asked for when this programme was generated, to prefill the next one */
+  brief?: PhaseBrief;
+}
+
+/** The user's answers to "what do you want from your next phase?", sent to the generator. */
+export interface PhaseBrief {
+  /** main goal, e.g. "Build muscle" */
+  goal: string;
+  /** body areas / qualities to prioritise, e.g. ["Glutes", "Core"] */
+  focus: string[];
+  daysPerWeek: number;
+  sessionMinutes: number;
+  weeks: number;
+  /** e.g. "Full gym" */
+  equipment: string;
+  /** alternate volume (odd) and heavy (even) weeks */
+  alternate: boolean;
+  /** injuries, niggles or exercises to avoid */
+  avoid?: string;
+  /** anything else: likes, dislikes, cardio, etc. */
+  notes?: string;
 }
 
 export interface SetLog {

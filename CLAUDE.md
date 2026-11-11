@@ -24,6 +24,12 @@ Tailwind), so keep the code idiomatic and conventional.
 - Programmes use a plain-text format parsed in `src/lib/measures.ts` (`# Day`, `Name 4x6 rest 90s (note)`,
   `+` line = superset with the line above, `Rowing 4min` = duration). `programmeToText` must round-trip.
 - Seed programme (ExpertPT Phase 6, 2 Nov – 27 Dec 2026; odd weeks volume, even weeks heavy) is in `src/lib/seed.ts`.
+- Phases: any programme can be a dated phase (`Programme.phase = { start, weeks, alternate? }`, set in the programme
+  editor). All date maths lives in `src/lib/phases.ts` (local YYYY-MM-DD days, DST-safe); `alternate` defaults to on
+  (odd weeks volume, even heavy). Train lists running/upcoming phases first and tucks finished ones under "Past phases".
+- Data safety (`src/lib/backup.ts`): Shell calls `navigator.storage.persist()` on load; exports record `lastBackupAt`
+  in `settings`; Home shows `BackupReminder` when there's data and no backup for 14+ days. On touch devices export uses
+  the share sheet (save to iCloud/Drive), else a download. Restoring sets `lastBackupAt` to the backup's `exportedAt`.
 - Exercise how-to: `src/lib/exercises.ts` + `src/data/exercises.json` + `public/exercises/*.jpg` (photos and instructions from the
   public-domain free-exercise-db, hand-mapped to the seeded programme's names; `approx` marks a similar-but-not-identical
   exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted

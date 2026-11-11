@@ -6,7 +6,13 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { parseProgrammeText, programmeToText } from "@/lib/measures";
-import { phaseWeek } from "@/lib/seed";
+import {
+  addDays,
+  phaseEnd,
+  phaseError,
+  phaseState,
+  suggestedPhaseStart,
+} from "@/lib/phases";
 import { exerciseProgressHref } from "@/lib/exercises";
 import {
   computePRs,
@@ -33,10 +39,14 @@ export default function WorkoutsPage() {
   };
 
   const active = sessions?.find((s) => !s.finishedAt);
-  const isFocus = (p: Programme, dayName: string) => {
-    const w = phaseWeek(p.phase);
-    return !!w && dayName.toLowerCase().includes(w.focus);
-  };
+  // running and upcoming phases first, then undated programmes; finished phases tuck away below
+  const rank = (p: Programme) =>
+    !p.phase ? 2 : { active: 0, upcoming: 1, ended: 3 }[phaseState(p.phase).state];
+  const sorted = [...(programmes ?? [])].sort(
+    (a, b) => rank(a) - rank(b) || (b.phase?.start ?? "").localeCompare(a.phase?.start ?? ""),
+  );
+  const current = sorted.filter((p) => rank(p) < 3);
+  const past = sorted.filter((p) => rank(p) === 3);
   const allPrs = sessions ? computePRs(sessions) : [];
   const prs = allPrs.slice(0, 6);
   const morePrs = allPrs.slice(6);
@@ -61,49 +71,27 @@ export default function WorkoutsPage() {
         Start empty workout
       </button>
 
-      {programmes?.map((p) => (
-        <Card
-          key={p.id}
-          title={
-            p.name +
-            (phaseWeek(p.phase)
-              ? ` · week ${phaseWeek(p.phase)!.week} of ${p.phase!.weeks} · ${phaseWeek(p.phase)!.focus} week`
-              : "")
-          }
-          action={
-            <button
-              className="text-xs text-zinc-400"
-              onClick={() => setEditing(p)}
-            >
-              Edit
-            </button>
-          }
-        >
-          <div className="space-y-2">
-            {p.days.map((d) => (
-              <button
-                key={d.name}
-                onClick={() => go(p.name, d)}
-                className={`flex w-full items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-left active:bg-zinc-800 ${
-                  isFocus(p, d.name) ? "ring-1 ring-emerald-500/50" : ""
-                }`}
-              >
-                <div>
-                  <div className="font-medium">{d.name}</div>
-                  <div className="text-xs text-zinc-500">
-                    {d.exercises.length} exercises
-                  </div>
-                </div>
-                <span className="text-sm text-emerald-400">Start →</span>
-              </button>
+      {current.map((p) => (
+        <ProgrammeCard key={p.id} programme={p} onStart={go} onEdit={() => setEditing(p)} />
+      ))}
+
+      {past.length > 0 && (
+        <details>
+          <summary className="cursor-pointer py-1 text-sm text-zinc-400">
+            Past phases ({past.length})
+          </summary>
+          <div className="mt-3 space-y-4">
+            {past.map((p) => (
+              <ProgrammeCard key={p.id} programme={p} onStart={go} onEdit={() => setEditing(p)} />
             ))}
           </div>
-        </Card>
-      ))}
+        </details>
+      )}
 
       {editing ? (
         <ProgrammeEditor
           programme={editing === "new" ? undefined : editing}
+          all={programmes ?? []}
           onClose={() => setEditing(null)}
         />
       ) : (
@@ -189,11 +177,81 @@ function PRList({ prs }: { prs: PR[] }) {
   );
 }
 
+const dayLabel = (day: string) =>
+  new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/** One-line status for a dated phase, e.g. "Week 3 of 8 · heavy week · ends 27 Dec". */
+function phaseSummary(phase: NonNullable<Programme["phase"]>) {
+  const s = phaseState(phase);
+  if (s.state === "upcoming")
+    return `Starts ${dayLabel(phase.start)} (in ${s.daysUntil} day${s.daysUntil === 1 ? "" : "s"}) · ${phase.weeks} weeks`;
+  if (s.state === "ended") return `${dayLabel(phase.start)} – ${dayLabel(phaseEnd(phase))} · finished`;
+  return [
+    `Week ${s.week} of ${phase.weeks}`,
+    s.focus && `${s.focus} week`,
+    s.daysLeft === 0 ? "last day" : `ends ${dayLabel(phaseEnd(phase))}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function ProgrammeCard({
+  programme: p,
+  onStart,
+  onEdit,
+}: {
+  programme: Programme;
+  onStart: (name: string, day: Programme["days"][number]) => void;
+  onEdit: () => void;
+}) {
+  const state = p.phase ? phaseState(p.phase) : undefined;
+  const focus = state?.state === "active" ? state.focus : undefined;
+  return (
+    <Card
+      title={p.name}
+      action={
+        <button className="text-xs text-zinc-400" onClick={onEdit}>
+          Edit
+        </button>
+      }
+    >
+      {p.phase && (
+        <p
+          className={`-mt-2 mb-3 text-xs ${
+            state?.state === "active" ? "text-emerald-400" : "text-zinc-500"
+          }`}
+        >
+          {phaseSummary(p.phase)}
+        </p>
+      )}
+      <div className="space-y-2">
+        {p.days.map((d) => (
+          <button
+            key={d.name}
+            onClick={() => onStart(p.name, d)}
+            className={`flex w-full items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-left active:bg-zinc-800 ${
+              focus && d.name.toLowerCase().includes(focus) ? "ring-1 ring-emerald-500/50" : ""
+            }`}
+          >
+            <div>
+              <div className="font-medium">{d.name}</div>
+              <div className="text-xs text-zinc-500">{d.exercises.length} exercises</div>
+            </div>
+            <span className="text-sm text-emerald-400">Start →</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function ProgrammeEditor({
   programme,
+  all,
   onClose,
 }: {
   programme?: Programme;
+  all: Programme[];
   onClose: () => void;
 }) {
   const [name, setName] = useState(programme?.name ?? "");
@@ -202,15 +260,29 @@ function ProgrammeEditor({
       ? programmeToText(programme.days)
       : "# Day A\nBench Press 4x8\nRow 3x10\n\n# Day B\nSquat 4x6\nRomanian Deadlift 3x8",
   );
+  const others = all.filter((p) => p.id !== programme?.id);
+  const [dated, setDated] = useState(!!programme?.phase);
+  const [start, setStart] = useState(programme?.phase?.start ?? suggestedPhaseStart(others));
+  const [weeks, setWeeks] = useState(String(programme?.phase?.weeks ?? 8));
+  const [alternate, setAlternate] = useState(programme?.phase?.alternate !== false);
+  const [error, setError] = useState("");
 
   const save = async () => {
     const days = parseProgrammeText(text);
-    if (!name.trim() || !days.length) return;
-    if (programme?.id) await db.programmes.update(programme.id, { name, days });
-    else await db.programmes.add({ name, days });
+    if (!name.trim()) return setError("Give the programme a name.");
+    if (!days.length) return setError("Add at least one exercise.");
+    let phase: Programme["phase"];
+    if (dated) {
+      const err = phaseError(start, Number(weeks));
+      if (err) return setError(err);
+      phase = { start, weeks: Number(weeks), alternate };
+    }
+    if (programme?.id) await db.programmes.update(programme.id, { name, days, phase });
+    else await db.programmes.add({ name, days, phase });
     onClose();
   };
 
+  const weeksN = Number(weeks);
   return (
     <Card title={programme ? "Edit programme" : "New programme"}>
       <div className="space-y-3">
@@ -230,6 +302,67 @@ function ProgrammeEditor({
           <code>Name 3x10 rest 90s (note)</code>. Start a line with <code>+</code>{" "}
           to superset it with the line above. Durations: <code>Rowing 4min</code>.
         </p>
+
+        <fieldset className="space-y-3 rounded-xl border border-zinc-800 p-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-emerald-500"
+              checked={dated}
+              onChange={(e) => setDated(e.target.checked)}
+            />
+            Run as a dated phase
+          </label>
+          {dated && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-zinc-400">
+                  Starts
+                  <input
+                    type="date"
+                    className={`${inputCls} mt-1`}
+                    value={start}
+                    onChange={(e) => setStart(e.target.value)}
+                  />
+                </label>
+                <label className="text-xs text-zinc-400">
+                  Weeks
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={26}
+                    className={`${inputCls} mt-1`}
+                    value={weeks}
+                    onChange={(e) => setWeeks(e.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-emerald-500"
+                  checked={alternate}
+                  onChange={(e) => setAlternate(e.target.checked)}
+                />
+                <span>
+                  Alternate volume and heavy weeks
+                  <span className="block text-xs text-zinc-500">
+                    Odd weeks volume, even weeks heavy. Days with &quot;volume&quot; or
+                    &quot;heavy&quot; in their name are highlighted in their week.
+                  </span>
+                </span>
+              </label>
+              {!phaseError(start, weeksN) && (
+                <p className="text-xs text-zinc-500">
+                  {dayLabel(start)} – {dayLabel(addDays(start, weeksN * 7 - 1))}
+                </p>
+              )}
+            </>
+          )}
+        </fieldset>
+
+        {error && <p className="text-sm text-red-400">{error}</p>}
         <div className="flex gap-2">
           <button className={btnCls} onClick={save}>
             Save

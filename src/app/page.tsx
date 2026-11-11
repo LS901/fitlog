@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { MEASURES, fmt, shortDate } from "@/lib/measures";
+import { exerciseProgressHref } from "@/lib/exercises";
+import { localDay } from "@/lib/nutrition";
 import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
+import { activeProgramme, trainingWeekStart, weekPlan } from "@/lib/schedule";
+import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets } from "@/lib/workouts";
 import type { MeasureType } from "@/lib/types";
 import { BackupReminder } from "@/components/BackupReminder";
 import { PhaseReminder } from "@/components/PhaseReminder";
+import { useStartWorkout } from "@/components/StartWorkout";
 import { Card, Stat, TrendChart } from "@/components/ui";
 
-const startOfWeek = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d;
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 5 ? "Hey" : h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
 };
 
 export default function Home() {
@@ -37,14 +40,23 @@ export default function Home() {
     return out;
   }, []);
 
-  const weekStart = startOfWeek().toISOString();
-  const thisWeek = sessions?.filter((s) => s.finishedAt && s.startedAt >= weekStart) ?? [];
+  const name = useSetting("displayName", "");
+  const { start, dialog } = useStartWorkout();
+
   const phaseProg = programmes && currentPhaseProgramme(programmes);
   const pw = phaseProg ? phaseWeek(phaseProg.phase) : null;
+  const programme = programmes && sessions ? activeProgramme(programmes, sessions) : undefined;
+  const plan = programme && sessions ? weekPlan(programme, sessions) : undefined;
+  // same week boundary as the plan, so "this week" agrees everywhere
+  const weekStart = trainingWeekStart(programme);
+  const thisWeek =
+    sessions?.filter(
+      (s) => s.finishedAt && localDay(new Date(s.startedAt)) >= weekStart,
+    ) ?? [];
   const prs = sessions ? computePRs(sessions).slice(0, 3) : [];
   const lastW = weights?.at(-1);
   const prevW = weights?.at(-2);
-  const inProgress = sessions?.some((s) => !s.finishedAt);
+  const inProgress = sessions?.find((s) => !s.finishedAt);
   const bp =
     latestOf?.systolic && latestOf?.diastolic
       ? `${latestOf.systolic}/${latestOf.diastolic}`
@@ -54,7 +66,8 @@ export default function Home() {
     <div className="space-y-4 pt-2">
       <div>
         <h1 className="text-2xl font-semibold">
-          {new Date().getHours() < 12 ? "Morning" : "Hey"}, Lew
+          {greeting()}
+          {name ? `, ${name}` : ""}
         </h1>
         {pw && phaseProg && (
           <p className="text-sm text-zinc-400">
@@ -69,17 +82,40 @@ export default function Home() {
         )}
       </div>
 
-      <Link
-        href="/workouts"
-        className="block rounded-2xl bg-emerald-500 p-4 text-zinc-950 active:bg-emerald-400"
-      >
-        <div className="text-xs font-medium opacity-70">
-          {inProgress ? "Workout in progress" : "Ready to train?"}
-        </div>
-        <div className="text-lg font-semibold">
-          {inProgress ? "Resume workout →" : "Start a workout →"}
-        </div>
-      </Link>
+      {inProgress ? (
+        <Link
+          href={`/workouts/session?id=${inProgress.id}`}
+          className="block rounded-2xl bg-emerald-500 p-4 text-zinc-950 active:bg-emerald-400"
+        >
+          <div className="text-xs font-medium opacity-70">Workout in progress</div>
+          <div className="text-lg font-semibold">
+            Resume {inProgress.dayName ?? "workout"} →
+          </div>
+        </Link>
+      ) : plan?.next ? (
+        <button
+          onClick={() => start(plan.programme, plan.next)}
+          className="block w-full rounded-2xl bg-emerald-500 p-4 text-left text-zinc-950 active:bg-emerald-400"
+        >
+          <div className="text-xs font-medium opacity-70">
+            Up next · {plan.done.length} of {plan.days.length} done this week
+          </div>
+          <div className="text-lg font-semibold">Start {plan.next.name} →</div>
+        </button>
+      ) : (
+        <Link
+          href="/workouts"
+          className="block rounded-2xl bg-emerald-500 p-4 text-zinc-950 active:bg-emerald-400"
+        >
+          <div className="text-xs font-medium opacity-70">
+            {plan?.days.length ? `Week complete: ${plan.done.length} of ${plan.days.length} done` : "Ready to train?"}
+          </div>
+          <div className="text-lg font-semibold">
+            {plan?.days.length ? "Fancy an extra session? →" : "Start a workout →"}
+          </div>
+        </Link>
+      )}
+      {dialog}
 
       <BackupReminder />
       <PhaseReminder />
@@ -132,11 +168,13 @@ export default function Home() {
         <Card title="Latest bests">
           <ul className="divide-y divide-zinc-800 text-sm">
             {prs.map((p) => (
-              <li key={p.exercise} className="flex justify-between py-2">
-                <span>{p.exercise}</span>
-                <span className="tabular-nums text-zinc-400">
-                  {p.weight} kg × {p.reps}
-                </span>
+              <li key={p.exercise}>
+                <Link href={exerciseProgressHref(p.exercise)} className="flex justify-between gap-3 py-2">
+                  <span className="min-w-0 truncate">{p.exercise}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-400">
+                    {p.weight} kg × {p.reps} ›
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

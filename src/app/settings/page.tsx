@@ -13,6 +13,7 @@ import {
 import { addMeasurements, db, importAll } from "@/lib/db";
 import { parseMeasurementCsv } from "@/lib/measures";
 import { GoalsCard } from "@/components/GoalsCard";
+import { PreferencesCard } from "@/components/PreferencesCard";
 import { Card, btnCls, btnGhostCls } from "@/components/ui";
 
 export default function SettingsPage() {
@@ -110,6 +111,8 @@ function Settings() {
                 : "Withings connection failed. Try again.")}
         </p>
       )}
+
+      <PreferencesCard />
 
       <GoalsCard />
 

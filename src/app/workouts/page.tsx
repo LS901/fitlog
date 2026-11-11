@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, setSetting } from "@/lib/db";
 import { parseProgrammeText, programmeToText } from "@/lib/measures";
 import {
   addDays,
@@ -14,31 +13,21 @@ import {
   suggestedPhaseStart,
 } from "@/lib/phases";
 import { exerciseProgressHref } from "@/lib/exercises";
-import {
-  computePRs,
-  doneSets,
-  sessionVolume,
-  startSession,
-  type PR,
-} from "@/lib/workouts";
-import type { Programme } from "@/lib/types";
+import { warmupDay, weekPlan, type WeekPlan } from "@/lib/schedule";
+import { useSetting } from "@/lib/useSetting";
+import { computePRs, doneSets, sessionVolume, type PR } from "@/lib/workouts";
+import type { Programme, ProgrammeDay, WorkoutSession } from "@/lib/types";
+import { useStartWorkout } from "@/components/StartWorkout";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
 
 export default function WorkoutsPage() {
-  const router = useRouter();
   const programmes = useLiveQuery(() => db.programmes.toArray(), []);
   const sessions = useLiveQuery(
     () => db.sessions.orderBy("startedAt").reverse().toArray(),
     [],
   );
   const [editing, setEditing] = useState<Programme | "new" | null>(null);
-
-  const go = async (name?: string, day?: Programme["days"][number]) => {
-    const id = await startSession(name, day);
-    router.push(`/workouts/session?id=${id}`);
-  };
-
-  const active = sessions?.find((s) => !s.finishedAt);
+  const { start, dialog, active } = useStartWorkout();
   // running and upcoming phases first, then undated programmes; finished phases tuck away below
   const rank = (p: Programme) =>
     !p.phase ? 2 : { active: 0, upcoming: 1, ended: 3 }[phaseState(p.phase).state];
@@ -67,13 +56,20 @@ export default function WorkoutsPage() {
         </Link>
       )}
 
-      <button className={`${btnCls} w-full`} onClick={() => go()}>
+      {current.map((p) => (
+        <ProgrammeCard
+          key={p.id}
+          programme={p}
+          sessions={sessions ?? []}
+          onStart={start}
+          onEdit={() => setEditing(p)}
+        />
+      ))}
+
+      <button className={`${btnGhostCls} w-full`} onClick={() => start()}>
         Start empty workout
       </button>
-
-      {current.map((p) => (
-        <ProgrammeCard key={p.id} programme={p} onStart={go} onEdit={() => setEditing(p)} />
-      ))}
+      {dialog}
 
       {past.length > 0 && (
         <details>
@@ -82,7 +78,13 @@ export default function WorkoutsPage() {
           </summary>
           <div className="mt-3 space-y-4">
             {past.map((p) => (
-              <ProgrammeCard key={p.id} programme={p} onStart={go} onEdit={() => setEditing(p)} />
+              <ProgrammeCard
+                key={p.id}
+                programme={p}
+                sessions={sessions ?? []}
+                onStart={start}
+                onEdit={() => setEditing(p)}
+              />
             ))}
           </div>
         </details>
@@ -202,15 +204,48 @@ function phaseSummary(phase: NonNullable<Programme["phase"]>) {
 
 function ProgrammeCard({
   programme: p,
+  sessions,
   onStart,
   onEdit,
 }: {
   programme: Programme;
-  onStart: (name: string, day: Programme["days"][number]) => void;
+  sessions: WorkoutSession[];
+  onStart: (programme: Programme, day: ProgrammeDay) => void;
   onEdit: () => void;
 }) {
   const state = p.phase ? phaseState(p.phase) : undefined;
-  const focus = state?.state === "active" ? state.focus : undefined;
+  // a running phase or an undated programme gets this week's view; upcoming/past phases list every day
+  const plan: WeekPlan | undefined =
+    !state || state.state === "active" ? weekPlan(p, sessions) : undefined;
+  const warmup = warmupDay(p);
+  const includeWarmup = useSetting("includeWarmup", true);
+
+  const dayButton = (d: ProgrammeDay) => {
+    const isNext = plan?.next?.name === d.name;
+    const isDone = plan?.done.includes(d.name);
+    return (
+      <button
+        key={d.name}
+        onClick={() => onStart(p, d)}
+        className={`flex w-full items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-left active:bg-zinc-800 ${
+          isNext ? "ring-1 ring-emerald-500/60" : ""
+        }`}
+      >
+        <div>
+          <div className={`font-medium ${isDone ? "text-zinc-400" : ""}`}>
+            {isDone && <span className="mr-1.5 text-emerald-400">✓</span>}
+            {d.name}
+          </div>
+          <div className="text-xs text-zinc-500">
+            {isNext ? "Up next · " : isDone ? "Done this week · " : ""}
+            {d.exercises.length} exercises
+          </div>
+        </div>
+        <span className={`text-sm ${isDone ? "text-zinc-500" : "text-emerald-400"}`}>Start →</span>
+      </button>
+    );
+  };
+
   return (
     <Card
       title={p.name}
@@ -227,6 +262,12 @@ function ProgrammeCard({
           }`}
         >
           {phaseSummary(p.phase)}
+          {plan && plan.days.length > 0 && (
+            <span className="text-zinc-400">
+              {" "}
+              · {plan.done.length} of {plan.days.length} done
+            </span>
+          )}
         </p>
       )}
       {(p.summary || p.notes?.length) && (
@@ -242,23 +283,29 @@ function ProgrammeCard({
           )}
         </details>
       )}
-      <div className="space-y-2">
-        {p.days.map((d) => (
-          <button
-            key={d.name}
-            onClick={() => onStart(p.name, d)}
-            className={`flex w-full items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-left active:bg-zinc-800 ${
-              focus && d.name.toLowerCase().includes(focus) ? "ring-1 ring-emerald-500/50" : ""
-            }`}
-          >
-            <div>
-              <div className="font-medium">{d.name}</div>
-              <div className="text-xs text-zinc-500">{d.exercises.length} exercises</div>
-            </div>
-            <span className="text-sm text-emerald-400">Start →</span>
-          </button>
-        ))}
-      </div>
+      <div className="space-y-2">{(plan ? plan.days : p.days).map(dayButton)}</div>
+      {plan && plan.days.length > 0 && !plan.next && (
+        <p className="mt-2 text-xs text-emerald-400">Week complete. Nice work.</p>
+      )}
+      {plan && plan.other.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer py-1 text-xs text-zinc-400">
+            Other days ({plan.other.length})
+          </summary>
+          <div className="mt-2 space-y-2">{plan.other.map(dayButton)}</div>
+        </details>
+      )}
+      {warmup && includeWarmup !== undefined && (
+        <label className="mt-3 flex items-center gap-2 text-xs text-zinc-400">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-emerald-500"
+            checked={includeWarmup}
+            onChange={(e) => setSetting("includeWarmup", e.target.checked)}
+          />
+          Start each session with {warmup.name}
+        </label>
+      )}
     </Card>
   );
 }

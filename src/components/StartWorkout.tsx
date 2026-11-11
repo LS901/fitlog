@@ -78,6 +78,12 @@ function InProgressDialog({
   useEffect(() => {
     ref.current?.showModal();
   }, []);
+  // Close before acting: Next keeps the previous page mounted (hidden) after navigating, and a
+  // modal left open there would make the next page inert.
+  const then = (action: () => void) => () => {
+    ref.current?.close();
+    action();
+  };
   return (
     <dialog
       ref={ref}
@@ -89,15 +95,15 @@ function InProgressDialog({
       <h2 className="font-medium">{activeName} is still in progress</h2>
       <p className="mt-1 text-sm text-zinc-400">Only one workout can be live at a time.</p>
       <div className="mt-4 space-y-2">
-        <button className={`${btnCls} w-full`} onClick={onResume}>
+        <button className={`${btnCls} w-full`} onClick={then(onResume)}>
           Resume {activeName}
         </button>
-        <button className={`${btnGhostCls} w-full`} onClick={onFinish}>
+        <button className={`${btnGhostCls} w-full`} onClick={then(onFinish)}>
           Finish it, then start {nextName}
         </button>
         <button
           className={`${btnGhostCls} w-full !text-red-400`}
-          onClick={() => confirm(`Discard ${activeName} and its sets?`) && onDiscard()}
+          onClick={() => confirm(`Discard ${activeName} and its sets?`) && then(onDiscard)()}
         >
           Discard it, then start {nextName}
         </button>

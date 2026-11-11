@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import { EXERCISE_NAMES } from "@/lib/exercises";
-import { lastSets } from "@/lib/workouts";
+import { EXERCISE_NAMES, exerciseProgressHref } from "@/lib/exercises";
+import { lastSets, prSetIndexes, previousMemo } from "@/lib/workouts";
 import type { SessionEntry, WorkoutSession } from "@/lib/types";
 import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
@@ -25,6 +26,8 @@ function Session() {
   const router = useRouter();
   const id = Number(useSearchParams().get("id"));
   const session = useLiveQuery(() => db.sessions.get(id), [id]);
+  // every session, for PR badges and carried-forward exercise notes
+  const all = useLiveQuery(() => db.sessions.toArray(), []);
   const [rest, setRest] = useState(0);
   const [newEx, setNewEx] = useState("");
   const [infoFor, setInfoFor] = useState<string | null>(null);
@@ -40,6 +43,7 @@ function Session() {
     return <p className="pt-6 text-zinc-400">Workout not found.</p>;
 
   const finished = !!session.finishedAt;
+  const prSets = all ? prSetIndexes(session, all) : [];
   const save = (patch: Partial<WorkoutSession>) => db.sessions.update(id, patch);
 
   const updateEntries = (fn: (e: SessionEntry[]) => SessionEntry[]) =>
@@ -105,7 +109,12 @@ function Session() {
               : ""
           }
           action={
-            <span className="text-xs text-zinc-500">
+            <span className="text-right text-xs text-zinc-500">
+              {prSets[ei] >= 0 && (
+                <span className="mr-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 font-medium text-amber-300">
+                  PR
+                </span>
+              )}
               {entry.group !== undefined &&
                 (session.entries[ei - 1]?.group === entry.group ||
                   session.entries[ei + 1]?.group === entry.group) &&
@@ -118,6 +127,18 @@ function Session() {
           {entry.notes && (
             <p className="mb-2 text-xs text-zinc-500">{entry.notes}</p>
           )}
+          <MemoField
+            // remount when the entry at this index changes (e.g. one above was removed)
+            key={`${ei}:${entry.exercise}`}
+            memo={entry.memo}
+            previous={all ? previousMemo(all, entry.exercise, session.startedAt) : undefined}
+            onSave={(memo) =>
+              updateEntries((es) => {
+                es[ei].memo = memo || undefined;
+                return es;
+              })
+            }
+          />
           <div className={`mb-1 grid ${SET_GRID} gap-2 text-xs text-zinc-500`}>
             <span>#</span>
             <span>kg</span>
@@ -128,7 +149,17 @@ function Session() {
           <div className="space-y-2">
             {entry.sets.map((set, si) => (
               <div key={si} className={`grid ${SET_GRID} items-center gap-2`}>
-                <span className="text-sm text-zinc-500">{si + 1}</span>
+                {prSets[ei] === si ? (
+                  <span
+                    className="text-[10px] font-semibold text-amber-300"
+                    title="Personal best (estimated 1RM)"
+                    aria-label={`Set ${si + 1}, personal best`}
+                  >
+                    PR
+                  </span>
+                ) : (
+                  <span className="text-sm text-zinc-500">{si + 1}</span>
+                )}
                 <input
                   type="number"
                   inputMode="decimal"
@@ -209,6 +240,9 @@ function Session() {
             >
               + Add set
             </button>
+            <Link href={exerciseProgressHref(entry.exercise)} className="text-zinc-400">
+              Progress →
+            </Link>
             <button
               className="text-zinc-600"
               onClick={() => updateEntries((es) => es.filter((_, i) => i !== ei))}
@@ -292,6 +326,36 @@ function Session() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The user's own note for one exercise; shows the last note written for it as a hint. */
+function MemoField({
+  memo,
+  previous,
+  onSave,
+}: {
+  memo?: string;
+  previous?: string;
+  onSave: (memo: string) => void;
+}) {
+  const [value, setValue] = useState(memo ?? "");
+  return (
+    <div className="mb-3">
+      {previous && !value && (
+        <p className="mb-1 text-xs text-zinc-400">
+          <span className="text-zinc-500">Last note:</span> {previous}
+        </p>
+      )}
+      <input
+        className={`${inputCls} py-1.5 text-sm`}
+        aria-label="Exercise note"
+        placeholder="Note (seat height, grip, how it felt…)"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => value.trim() !== (memo ?? "") && onSave(value.trim())}
+      />
     </div>
   );
 }

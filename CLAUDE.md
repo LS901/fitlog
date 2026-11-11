@@ -46,7 +46,10 @@ Tailwind), so keep the code idiomatic and conventional.
 2. ~~**Goals.**~~ Done: editable in Settings, stored in Dexie `settings`; goal line + % progress on Body.
 3. ~~**Charts.**~~ Done in `MetricPanel` (Body + Vitals): 3M/6M/1Y/All chips, dashed weekly-average overlay (charts with
    1-2 series only), collapsible weekly-average list. Pure helpers in `src/lib/series.ts`.
-4. Per-exercise progress charts, workout notes/PR badges in the session UI. (Editing sets/reps on any session, including
-   finished ones, is done.)
+4. ~~**Per-exercise progress + PR badges.**~~ Done: `/workouts/exercise?name=` (est. 1RM + top-set chart, volume chart,
+   range chips, best set, per-session history; reps/minutes instead for bodyweight or timed work), linked from the PB
+   list, each session card ("Progress →") and the how-to modal. Session cards badge the set that beats every earlier
+   session's best e1rm (`prSetIndexes`; never on an exercise's first appearance). Per-exercise notes live on
+   `SessionEntry.memo` and the latest earlier one shows as "Last note" (`previousMemo`). Session-level notes already existed.
 5. Photos: bulk import from camera roll with date from EXIF, front/side/back tabs.
 6. Tests (Vitest) for the programme parser, CSV parser and `computePRs`.

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { e1rm } from "./measures";
-import type { ProgrammeDay, SessionEntry, WorkoutSession } from "./types";
+import type { ProgrammeDay, SessionEntry, SetLog, WorkoutSession } from "./types";
 
 /** Most recent completed sets for an exercise, to prefill and show "last time". */
 export async function lastSets(exercise: string) {
@@ -78,6 +78,94 @@ export function computePRs(sessions: WorkoutSession[]): PR[] {
     }
   }
   return [...best.values()].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+const sameExercise = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/** One finished session's performance on a single exercise. */
+export interface ExercisePoint {
+  sessionId?: number;
+  date: string;
+  /** best estimated 1RM of the session's done sets (0 for bodyweight-only work) */
+  e1rm: number;
+  /** heaviest done set */
+  topWeight: number;
+  /** most reps (or minutes) in a single done set */
+  topReps: number;
+  /** weight × reps over the done sets */
+  volume: number;
+  sets: SetLog[];
+}
+
+/**
+ * Per-session history of one exercise across finished sessions, oldest first. Sessions where the
+ * exercise has no done sets are skipped. Names match case-insensitively.
+ */
+export function exerciseHistory(sessions: WorkoutSession[], exercise: string): ExercisePoint[] {
+  const out: ExercisePoint[] = [];
+  for (const s of sessions) {
+    if (!s.finishedAt) continue;
+    const sets = s.entries
+      .filter((e) => sameExercise(e.exercise, exercise))
+      .flatMap((e) => e.sets.filter((x) => x.done));
+    if (!sets.length) continue;
+    out.push({
+      sessionId: s.id,
+      date: s.startedAt,
+      e1rm: Math.max(0, ...sets.map((x) => (x.weight > 0 && x.reps > 0 ? e1rm(x.weight, x.reps) : 0))),
+      topWeight: Math.max(0, ...sets.map((x) => x.weight)),
+      topReps: Math.max(0, ...sets.map((x) => x.reps)),
+      volume: sets.reduce((t, x) => t + x.weight * x.reps, 0),
+      sets,
+    });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * For each entry of `session`, the index of the set that beats every earlier finished session's
+ * best estimated 1RM for that exercise, or -1. Only the session's best set is badged, and an
+ * exercise with no earlier history never is (the first time isn't a "record"). Works for live
+ * sessions too: only done sets count.
+ */
+export function prSetIndexes(session: WorkoutSession, all: WorkoutSession[]): number[] {
+  const earlier = all.filter(
+    (s) => s.finishedAt && s.id !== session.id && s.startedAt < session.startedAt,
+  );
+  // An exercise can appear twice in one session; only its single best set gets the badge.
+  const winner = new Map<string, { entry: number; set: number; est: number }>();
+  session.entries.forEach((e, ei) => {
+    const key = e.exercise.toLowerCase();
+    e.sets.forEach((x, si) => {
+      if (!x.done || x.weight <= 0 || x.reps <= 0) return;
+      const est = e1rm(x.weight, x.reps);
+      const cur = winner.get(key);
+      if (!cur || est > cur.est) winner.set(key, { entry: ei, set: si, est });
+    });
+  });
+  const result = session.entries.map(() => -1);
+  for (const [key, w] of winner) {
+    const prior = exerciseHistory(earlier, key);
+    if (!prior.length) continue;
+    const best = Math.max(...prior.map((p) => p.e1rm));
+    if (best > 0 && w.est > best) result[w.entry] = w.set;
+  }
+  return result;
+}
+
+/** The most recent per-exercise note written in a session that started before `before`. */
+export function previousMemo(
+  sessions: WorkoutSession[],
+  exercise: string,
+  before: string,
+): string | undefined {
+  let found: { date: string; memo: string } | undefined;
+  for (const s of sessions) {
+    if (s.startedAt >= before || (found && s.startedAt <= found.date)) continue;
+    const memo = s.entries.find((e) => sameExercise(e.exercise, exercise) && e.memo?.trim())?.memo;
+    if (memo) found = { date: s.startedAt, memo: memo.trim() };
+  }
+  return found?.memo;
 }
 
 export const sessionVolume = (s: WorkoutSession) =>

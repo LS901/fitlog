@@ -63,7 +63,10 @@ export interface SessionEntry {
   target?: string;
   rest?: number;
   group?: number;
+  /** coaching note from the programme line */
   notes?: string;
+  /** the user's own note for this exercise in this session (e.g. "seat on 4"); carried forward as a hint */
+  memo?: string;
   sets: SetLog[];
 }
 

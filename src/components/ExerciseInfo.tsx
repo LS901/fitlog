@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { getExerciseVideos, saveExerciseVideo } from "@/lib/db";
 import {
   exerciseImageUrl,
   exerciseKey,
+  exerciseProgressHref,
   findExercise,
   isWebUrl,
   videoEmbedUrl,
@@ -205,6 +207,14 @@ export function ExerciseModal({ name, onClose }: { name: string; onClose: () => 
             video you saved.
           </p>
         </div>
+
+        <Link
+          href={exerciseProgressHref(name)}
+          onClick={() => dialog.current?.close()}
+          className={`${btnGhostCls} block text-center`}
+        >
+          Your progress on this exercise →
+        </Link>
 
         {found && (
           <p className="text-[11px] text-zinc-600">

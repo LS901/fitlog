@@ -7,7 +7,14 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { parseProgrammeText, programmeToText } from "@/lib/measures";
 import { phaseWeek } from "@/lib/seed";
-import { computePRs, doneSets, sessionVolume, startSession } from "@/lib/workouts";
+import { exerciseProgressHref } from "@/lib/exercises";
+import {
+  computePRs,
+  doneSets,
+  sessionVolume,
+  startSession,
+  type PR,
+} from "@/lib/workouts";
 import type { Programme } from "@/lib/types";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
 
@@ -30,7 +37,9 @@ export default function WorkoutsPage() {
     const w = phaseWeek(p.phase);
     return !!w && dayName.toLowerCase().includes(w.focus);
   };
-  const prs = sessions ? computePRs(sessions).slice(0, 6) : [];
+  const allPrs = sessions ? computePRs(sessions) : [];
+  const prs = allPrs.slice(0, 6);
+  const morePrs = allPrs.slice(6);
 
   return (
     <div className="space-y-4 pt-2">
@@ -105,17 +114,15 @@ export default function WorkoutsPage() {
 
       {prs.length > 0 && (
         <Card title="Personal bests (est. 1RM)">
-          <ul className="divide-y divide-zinc-800">
-            {prs.map((p) => (
-              <li key={p.exercise} className="flex justify-between py-2 text-sm">
-                <span>{p.exercise}</span>
-                <span className="tabular-nums text-zinc-400">
-                  {p.weight} kg × {p.reps} ·{" "}
-                  <span className="text-emerald-400">{Math.round(p.e1rm)} kg</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <PRList prs={prs} />
+          {morePrs.length > 0 && (
+            <details className="mt-1">
+              <summary className="cursor-pointer py-2 text-xs text-zinc-400">
+                {morePrs.length} more exercise{morePrs.length === 1 ? "" : "s"}
+              </summary>
+              <PRList prs={morePrs} />
+            </details>
+          )}
         </Card>
       )}
 
@@ -157,6 +164,28 @@ export default function WorkoutsPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+/** Best set per exercise; each row opens that exercise's progress page. */
+function PRList({ prs }: { prs: PR[] }) {
+  return (
+    <ul className="divide-y divide-zinc-800">
+      {prs.map((p) => (
+        <li key={p.exercise}>
+          <Link
+            href={exerciseProgressHref(p.exercise)}
+            className="flex justify-between gap-3 py-2 text-sm"
+          >
+            <span className="min-w-0 truncate">{p.exercise}</span>
+            <span className="shrink-0 tabular-nums text-zinc-400">
+              {p.weight} kg × {p.reps} ·{" "}
+              <span className="text-emerald-400">{Math.round(p.e1rm)} kg</span> ›
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -92,3 +92,7 @@ export function isWebUrl(link: string): boolean {
     return false;
   }
 }
+
+/** URL of an exercise's progress page. */
+export const exerciseProgressHref = (name: string) =>
+  `/workouts/exercise?name=${encodeURIComponent(name)}`;

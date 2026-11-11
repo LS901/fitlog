@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import { dayKey, shortDate } from "@/lib/measures";
+import { dayKey, e1rm, shortDate } from "@/lib/measures";
 import { RANGES, rangeStart, type Range } from "@/lib/series";
 import { exerciseHistory } from "@/lib/workouts";
 import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
@@ -46,14 +46,9 @@ function ExerciseProgress() {
     (b, p) => (!b || (weighted ? p.e1rm > b.e1rm : p.topReps > b.topReps) ? p : b),
     undefined,
   );
+  // the set behind the best e1rm, so the two stats agree
   const bestSet = best?.sets.reduce((a, x) =>
-    weighted
-      ? x.weight > a.weight || (x.weight === a.weight && x.reps > a.reps)
-        ? x
-        : a
-      : x.reps > a.reps
-        ? x
-        : a,
+    (weighted ? e1rm(x.weight, x.reps) > e1rm(a.weight, a.reps) : x.reps > a.reps) ? x : a,
   );
   const first = history[0];
   const last = history.at(-1);

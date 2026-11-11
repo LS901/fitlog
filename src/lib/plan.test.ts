@@ -71,6 +71,39 @@ describe("buildTrainingSummary", () => {
     expect(s.notLogged).toEqual(["Otis up"]);
   });
 
+  it("includes phase adherence and stalled lifts, and tells Claude", () => {
+    // week 7 of the phase × 1 planned day; these test sessions carry no programme or day name, so
+    // none count as done
+    expect(s.previousPhase).toMatchObject({ sessionsDone: 0, sessionsPlanned: 7 });
+    const stalledSummary = buildTrainingSummary({
+      sessions: [
+        session("2026-12-01", [{ exercise: "Bench", target: "4×6", sets: [set(80, 6), set(80, 4)] }]),
+        session("2026-12-08", [{ exercise: "Bench", target: "4×6", sets: [set(80, 5), set(80, 4)] }]),
+      ],
+      programmes: [],
+      weights: [],
+      now,
+    });
+    expect(stalledSummary.stalled).toEqual(["Bench"]);
+    const prompt = renderPlanPrompt(
+      {
+        brief: {
+          goal: "Build muscle",
+          focus: [],
+          daysPerWeek: 3,
+          sessionMinutes: 60,
+          weeks: 8,
+          equipment: "Full gym",
+          alternate: true,
+        },
+        summary: { ...s, stalled: ["Bench"] },
+      },
+      [],
+    );
+    expect(prompt).toContain("I did 0 of the 7 planned sessions.");
+    expect(prompt).toContain("Stalled lately (missed reps two or more sessions running): Bench.");
+  });
+
   it("includes the in-window weight trend and goal", () => {
     expect(s.bodyWeight).toEqual({
       firstKg: 84,

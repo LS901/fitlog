@@ -5,6 +5,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { goalProgress } from "@/lib/goals";
 import { fmt } from "@/lib/measures";
+import { localDay } from "@/lib/nutrition";
+import { addDays } from "@/lib/phases";
+import { losingTooFast, weeksToGoal, weightRate } from "@/lib/trends";
 import { useGoals } from "@/lib/useGoals";
 import { Card } from "./ui";
 
@@ -48,6 +51,19 @@ export function GoalProgress() {
 
   const pct = goalProgress(start, current, goal);
   const toGo = current - goal;
+  const today = localDay();
+  const rate = weightRate(
+    weights.map((w) => ({ day: localDay(new Date(w.date)), value: w.value })),
+    today,
+  );
+  const weeks = rate && weeksToGoal(current, goal, rate.kgPerWeek);
+  const eta =
+    weeks !== undefined && weeks > 0 && weeks < 260
+      ? new Date(`${addDays(today, Math.round(weeks * 7))}T12:00:00`).toLocaleDateString("en-GB", {
+          month: "short",
+          year: "numeric",
+        })
+      : undefined;
 
   return (
     <Card title="Goal">
@@ -79,6 +95,29 @@ export function GoalProgress() {
         <span>Now {fmt("weight", current)}</span>
         <span>Goal {fmt("weight", goal)}</span>
       </div>
+      {rate && (
+        <p className="mt-3 text-sm text-zinc-300">
+          Trend {rate.kgPerWeek > 0 ? "+" : ""}
+          {rate.kgPerWeek.toFixed(2)} kg/week
+          <span className="text-zinc-500"> (last {rate.days} days)</span>
+          {eta && (
+            <span className="block text-xs text-zinc-400">
+              At this rate you&apos;ll reach {fmt("weight", goal)} around {eta} (~{Math.ceil(weeks!)} weeks).
+            </span>
+          )}
+          {weeks === undefined && Math.abs(toGo) >= 0.05 && (
+            <span className="block text-xs text-zinc-400">
+              The trend is heading away from your goal right now.
+            </span>
+          )}
+          {losingTooFast(current, rate.kgPerWeek) && (
+            <span className="block text-xs text-amber-300">
+              That&apos;s over 1% of body weight a week: faster than usual for keeping muscle. Consider
+              eating a little more.
+            </span>
+          )}
+        </p>
+      )}
     </Card>
   );
 }

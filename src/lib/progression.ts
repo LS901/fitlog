@@ -53,6 +53,8 @@ export interface Suggestion {
   reps: number;
   /** short human reason, e.g. "Hit 4×8 at 60 kg last time" */
   reason: string;
+  /** sessions in a row that fell short of the rep range (hold / deload only) */
+  missStreak?: number;
 }
 
 /** Rounds away float noise (60 + 2.5 + 2.5 …) to 2 decimals. */
@@ -141,6 +143,7 @@ export function suggestNext(
         weight: tidy(Math.max(down, 0)),
         reps: min,
         reason: `Short of ${min} reps ${streak} sessions running: drop ~10% and build back`,
+        missStreak: streak,
       };
     }
     return {
@@ -151,6 +154,7 @@ export function suggestNext(
         streak === 2
           ? `Short of ${min} reps twice at ${kg(top)}: hold and get every set to ${min}`
           : `Stay at ${kg(top)} and get every set to ${min}`,
+      missStreak: streak,
     };
   }
 

@@ -7,6 +7,8 @@ import { z } from "zod";
 import { e1rm, programmeToText } from "./measures";
 import { phaseEnd } from "./phases";
 import { localDay } from "./nutrition";
+import { incrementFor } from "./exercises";
+import { phaseReport, stalledLifts } from "./insights";
 import { exerciseHistory } from "./workouts";
 import type { Measurement, Programme, WorkoutSession } from "./types";
 
@@ -49,8 +51,13 @@ export const TrainingSummarySchema = z.object({
       start: str(10).optional(),
       end: str(10).optional(),
       text: str(8000),
+      /** finished workouts during the phase vs what it planned (so far, if still running) */
+      sessionsDone: z.number().int().min(0).optional(),
+      sessionsPlanned: z.number().int().min(0).optional(),
     })
     .optional(),
+  /** lifts that missed their reps two or more sessions running recently */
+  stalled: z.array(str(80)).max(30).optional(),
   exercises: z.array(ExerciseSummarySchema).max(60),
   /** exercises in the previous phase that were never logged during it */
   notLogged: z.array(str(80)).max(60),
@@ -174,6 +181,18 @@ export function buildTrainingSummary({
       ].slice(0, 60)
     : [];
 
+  const report =
+    previous &&
+    phaseReport(
+      previous,
+      sessions,
+      weights.map((w) => ({ day: w.date.slice(0, 10), value: w.value })),
+      today,
+    );
+  const stalled = stalledLifts(recent, (n) => incrementFor(n), today)
+    .map((x) => x.name)
+    .slice(0, 30);
+
   const inWindow = weights
     .filter((w) => w.date >= from)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -197,7 +216,9 @@ export function buildTrainingSummary({
       start: previous.phase!.start,
       end: phaseEnd(previous.phase!),
       text: programmeToText(previous.days).slice(0, 8000),
+      ...(report && { sessionsDone: report.done, sessionsPlanned: report.planned }),
     },
+    ...(stalled.length && { stalled }),
     exercises,
     notLogged,
     ...(bodyWeight && { bodyWeight }),
@@ -258,6 +279,8 @@ export function renderPlanPrompt({ brief, summary }: PlanRequest, libraryNames: 
   } else {
     lines.push("No workouts logged yet in the app.");
   }
+  if (summary.stalled?.length)
+    lines.push(`Stalled lately (missed reps two or more sessions running): ${summary.stalled.join(", ")}.`);
   if (summary.bodyWeight) {
     const b = summary.bodyWeight;
     lines.push(
@@ -272,6 +295,8 @@ export function renderPlanPrompt({ brief, summary }: PlanRequest, libraryNames: 
     const p = summary.previousPhase;
     lines.push(`## My previous phase: ${p.name}${p.start ? ` (${p.start} to ${p.end})` : ""}`);
     lines.push("```", p.text, "```");
+    if (p.sessionsPlanned)
+      lines.push(`I did ${p.sessionsDone ?? 0} of the ${p.sessionsPlanned} planned sessions.`);
     if (summary.notLogged.length)
       lines.push(`Exercises from it I never logged: ${summary.notLogged.join(", ")}.`);
     lines.push("");

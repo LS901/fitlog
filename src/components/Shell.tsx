@@ -52,7 +52,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
 
-      <main className="flex-1 px-5 pb-28">{isClient ? children : null}</main>
+      <main className="flex-1 px-5 pb-44">{isClient ? children : null}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         {isClient && <ToastBar />}

@@ -27,6 +27,10 @@ const shortDay = (iso: string) =>
 
 type Panel = "tools" | "swap" | "plates" | null;
 
+/** 90 → "90s", 120 → "2 min", 150 → "2:30" */
+const restLabel = (s: number) =>
+  s < 120 ? `${s}s` : s % 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s / 60} min`;
+
 export interface BarSetup {
   bar: number;
   plates: number[];
@@ -109,7 +113,7 @@ export function EntryCard({
           )}
           {superset && "Superset · "}
           {entry.target}
-          {entry.rest ? ` · ${entry.rest}s rest` : ""}
+          {entry.rest ? ` · ${restLabel(entry.rest)} rest` : ""}
         </span>
       }
     >
@@ -427,15 +431,17 @@ function PlatesPanel({
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-zinc-800 p-3 text-sm">
       <label className="flex items-center gap-2 text-xs text-zinc-400">
-        Working weight
-        <input
-          type="number"
-          inputMode="decimal"
-          className={`${inputCls} w-24 py-1.5`}
-          value={work}
-          onChange={(e) => setWork(e.target.value)}
-        />
-        kg · {bar} kg bar
+        <span className="shrink-0">Working weight</span>
+        <span className="w-24 shrink-0">
+          <input
+            type="number"
+            inputMode="decimal"
+            className={`${inputCls} py-1.5`}
+            value={work}
+            onChange={(e) => setWork(e.target.value)}
+          />
+        </span>
+        <span>kg on a {bar} kg bar</span>
       </label>
       {w > 0 && (
         <p>

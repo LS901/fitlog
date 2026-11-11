@@ -42,7 +42,12 @@ export default function WorkoutsPage() {
 
   return (
     <div className="space-y-4 pt-2">
-      <h1 className="text-2xl font-semibold">Train</h1>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-2xl font-semibold">Train</h1>
+        <Link href="/workouts/insights" className="text-sm text-emerald-400">
+          Insights →
+        </Link>
+      </div>
 
       {active && (
         <Link

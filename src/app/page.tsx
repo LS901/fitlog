@@ -7,6 +7,7 @@ import { MEASURES, fmt, shortDate } from "@/lib/measures";
 import { exerciseProgressHref } from "@/lib/exercises";
 import { localDay } from "@/lib/nutrition";
 import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
+import { weekStreak } from "@/lib/insights";
 import { activeProgramme, trainingWeekStart, weekPlan } from "@/lib/schedule";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets } from "@/lib/workouts";
@@ -54,6 +55,7 @@ export default function Home() {
       (s) => s.finishedAt && localDay(new Date(s.startedAt)) >= weekStart,
     ) ?? [];
   const prs = sessions ? computePRs(sessions).slice(0, 3) : [];
+  const streak = sessions ? weekStreak(sessions, localDay()) : 0;
   const lastW = weights?.at(-1);
   const prevW = weights?.at(-2);
   const inProgress = sessions?.find((s) => !s.finishedAt);
@@ -133,11 +135,12 @@ export default function Home() {
         <Stat
           label="Workouts this week"
           value={String(thisWeek.length)}
-          sub={
-            thisWeek.length
-              ? `${thisWeek.reduce((t, s) => t + doneSets(s), 0)} sets`
-              : undefined
-          }
+          sub={[
+            thisWeek.length ? `${thisWeek.reduce((t, s) => t + doneSets(s), 0)} sets` : "",
+            streak > 1 ? `${streak}-week streak` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined}
         />
         <Stat label="Body fat" value={fmt("bodyFat", latestOf?.bodyFat)} />
         <Stat

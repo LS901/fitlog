@@ -81,6 +81,11 @@ Tailwind), so keep the code idiomatic and conventional.
 - Google Health: Health Connect has no web API. Google's new Google Health API (Fitbit Web API replacement, Nov 2026)
   is web/OAuth but not onboarding new projects yet; Withings already covers scale/BP, so read from Withings for now.
 
+## Landing page (`landing/`)
+Separate static Next.js site for the public product idea ("Phasewise", waitlist only), with its own package.json,
+lint and tsconfig; the root tsconfig/eslint ignore it. Never import app code into it or deploy the app with it.
+Brand strings live in `landing/src/site.ts`. See `landing/README.md`.
+
 ## Privacy rules
 - Never commit personal data. `/data/` and `.env*` (except `.env.example`) are gitignored.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.

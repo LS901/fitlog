@@ -181,6 +181,40 @@ export async function startSession(
   return (await db.sessions.add(session)) as number;
 }
 
+/** Starts a new live workout with the same exercises as `src`, prefilled from history. */
+export async function repeatSession(src: WorkoutSession): Promise<number> {
+  const [sessions, increments] = await Promise.all([finishedSessions(), getExerciseIncrements()]);
+  const entries = src.entries.map((e) =>
+    buildEntry(
+      sessions,
+      increments,
+      {
+        name: e.exercise,
+        sets: e.sets.filter((x) => x.kind !== "warmup").length,
+        target: e.target,
+        rest: e.rest,
+        group: e.group,
+        notes: e.notes,
+      },
+      src.dayName,
+    ),
+  );
+  return (await db.sessions.add({
+    startedAt: new Date().toISOString(),
+    programmeName: src.programmeName,
+    dayName: src.dayName,
+    entries,
+  })) as number;
+}
+
+/** Every exercise name in the history, most recently trained first. */
+export function knownExerciseNames(sessions: WorkoutSession[]): string[] {
+  const seen = new Map<string, string>();
+  for (const s of [...sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)))
+    for (const e of s.entries) if (!seen.has(exerciseKey(e.exercise))) seen.set(exerciseKey(e.exercise), e.exercise);
+  return [...seen.values()];
+}
+
 export interface PR {
   exercise: string;
   weight: number;

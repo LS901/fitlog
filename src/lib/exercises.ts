@@ -107,3 +107,40 @@ export function incrementFor(name: string, overrides: Record<string, number> = {
   if (typeof own === "number" && own >= 0) return own;
   return defaultIncrement(name, findExercise(name)?.info.equipment);
 }
+
+const CONDITIONING = /stretch|mobility|treadmill|elliptical|rowing|cross ?trainer|bike|cardio/i;
+
+/** True for cardio machines and stretches, which only swap for their own kind. */
+const isConditioning = (name: string) =>
+  CONDITIONING.test(name) || CONDITIONING.test(findExercise(name)?.info.name ?? "");
+
+/**
+ * Exercises that work the same main muscle as `name`, for swapping when a machine is taken. Names
+ * the user already trains (`known`, which carry history) come first, then the library; anything
+ * that maps to the same library exercise as one already listed is skipped.
+ */
+export function alternativesFor(name: string, known: string[] = [], limit = 8): string[] {
+  const muscles = findExercise(name)?.info.muscles ?? [];
+  if (!muscles.length) return [];
+  const kind = isConditioning(name);
+  const self = exerciseKey(name);
+  const seen = new Set<string>([findExercise(name)?.info.id ?? self]);
+  const out: string[] = [];
+  for (const candidate of [...known, ...EXERCISE_NAMES]) {
+    const key = exerciseKey(candidate);
+    const info = findExercise(candidate)?.info;
+    const id = info?.id ?? key;
+    if (key === self || seen.has(id) || !info) continue;
+    if (!info.muscles.some((m) => muscles.includes(m))) continue;
+    if (isConditioning(candidate) !== kind) continue;
+    seen.add(id);
+    out.push(candidate);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** True when the exercise is done with a barbell, so plate maths applies. */
+export const isBarbell = (name: string) =>
+  findExercise(name)?.info.equipment === "barbell" ||
+  /barbell|deadlift|back squat|bench press/i.test(name);

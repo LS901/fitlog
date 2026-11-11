@@ -7,8 +7,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { dayKey, e1rm, shortDate } from "@/lib/measures";
 import { RANGES, rangeStart, type Range } from "@/lib/series";
-import { exerciseHistory } from "@/lib/workouts";
+import { exerciseHistory, sameExercise } from "@/lib/workouts";
 import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
+import { NextTimeCard } from "@/components/NextTimeCard";
 import { Card, Chip, Stat, TrendChart, btnGhostCls } from "@/components/ui";
 
 export default function ExerciseProgressPage() {
@@ -43,7 +44,7 @@ function ExerciseProgress() {
   // duration exercises ("Rowing 4min") log minutes in the reps field
   const isTimed = sessions.some((s) =>
     s.entries.some(
-      (e) => e.exercise.toLowerCase() === name.toLowerCase() && /min/i.test(e.target ?? ""),
+      (e) => sameExercise(e.exercise, name) && /min/i.test(e.target ?? ""),
     ),
   );
   const repUnit = isTimed ? "min" : "reps";
@@ -117,6 +118,8 @@ function ExerciseProgress() {
               </>
             )}
           </div>
+
+          <NextTimeCard name={name} sessions={sessions} best={weighted ? best : undefined} />
 
           <div className="flex flex-wrap gap-2">
             {RANGES.map((r) => (

@@ -6,6 +6,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { requestPersistentStorage } from "@/lib/backup";
 import { seedIfEmpty } from "@/lib/seed";
 import { RestTimer } from "./RestTimer";
+import { ToastBar } from "./Toast";
 
 const NAV = [
   { href: "/", label: "Home", icon: "◉" },
@@ -54,6 +55,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 px-5 pb-28">{isClient ? children : null}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+        {isClient && <ToastBar />}
         {isClient && <RestTimer />}
         <ul className="mx-auto flex max-w-xl">
           {NAV.map((n) => {

@@ -1,41 +1,44 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import { EXERCISE_NAMES, exerciseProgressHref, incrementFor } from "@/lib/exercises";
-import { parseRepTarget, suggestionLabel } from "@/lib/progression";
+import { EXERCISE_NAMES, incrementFor } from "@/lib/exercises";
+import { toLocalInputValue } from "@/lib/measures";
+import { DEFAULT_BAR, DEFAULT_PLATES } from "@/lib/plates";
 import { restAfterSet } from "@/lib/rest";
 import { startRest, stopRest } from "@/lib/restTimer";
 import { summarise, untickedSets, type WorkoutSummary } from "@/lib/summary";
+import { showToast } from "@/lib/toast";
 import { useSetting } from "@/lib/useSetting";
+import { useWakeLock } from "@/lib/useWakeLock";
 import {
-  formatSets,
+  knownExerciseNames,
   newEntry,
   planExercise,
   prSetIndexes,
   previousMemo,
-  type ExercisePlan,
+  repeatSession,
 } from "@/lib/workouts";
-import type { Effort, SessionEntry, WorkoutSession } from "@/lib/types";
-import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
+import type { SessionEntry, WorkoutSession } from "@/lib/types";
+import { EntryCard } from "@/components/EntryCard";
+import { ExerciseModal } from "@/components/ExerciseInfo";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
-
-/** # | kg | reps | done | remove */
-const SET_GRID = "grid-cols-[1.5rem_1fr_1fr_2.75rem_2rem]";
-/** # | min | done | remove (timed moves have no weight) */
-const TIMED_GRID = "grid-cols-[1.5rem_1fr_2.75rem_2rem]";
 
 const NO_INCREMENTS: Record<string, number> = {};
 
 export default function SessionPage() {
   return (
     <Suspense fallback={null}>
-      <Session />
+      <SessionById />
     </Suspense>
   );
+}
+
+/** Fresh state per workout: "Repeat" navigates to another id on this same page. */
+function SessionById() {
+  return <Session key={useSearchParams().get("id")} />;
 }
 
 function Session() {
@@ -47,9 +50,15 @@ function Session() {
   // every session, for PR badges, last time / suggestions and carried-forward notes
   const all = useLiveQuery(() => db.sessions.toArray(), []);
   const increments = useSetting("exerciseIncrements", NO_INCREMENTS) ?? NO_INCREMENTS;
+  const wakeLock = useSetting("wakeLock", true);
+  const bar = useSetting("barKg", DEFAULT_BAR) ?? DEFAULT_BAR;
+  const plates = useSetting("plates", DEFAULT_PLATES) ?? DEFAULT_PLATES;
   const [newEx, setNewEx] = useState("");
   const [infoFor, setInfoFor] = useState<string | null>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
+  // keep the screen on during a live workout
+  useWakeLock(!!session && !session.finishedAt && wakeLock === true);
 
   if (session === undefined) return null;
   if (!session)
@@ -70,6 +79,60 @@ function Session() {
     setNewEx("");
   };
 
+  const removeEntry = (ei: number) => {
+    const before = session.entries;
+    const name = session.entries[ei].exercise;
+    updateEntries((es) => es.filter((_, i) => i !== ei));
+    showToast(`${name} removed`, () => save({ entries: before }));
+  };
+
+  const moveEntry = (ei: number, dir: -1 | 1) =>
+    updateEntries((es) => {
+      const j = ei + dir;
+      if (j < 0 || j >= es.length) return es;
+      [es[ei], es[j]] = [es[j], es[ei]];
+      return es;
+    });
+
+  /** Replaces an exercise (e.g. machine taken), keeping the plan's set count, target, rest and superset. */
+  const swapEntry = async (ei: number, name: string) => {
+    const old = session.entries[ei];
+    const fresh = await newEntry(name, session.dayName);
+    const count = old.sets.filter((x) => x.kind !== "warmup").length || fresh.sets.length;
+    updateEntries((es) => {
+      es[ei] = {
+        ...fresh,
+        target: old.target,
+        rest: old.rest,
+        group: old.group,
+        notes: old.notes,
+        sets: Array.from({ length: count }, (_, i) => ({
+          ...fresh.sets[Math.min(i, fresh.sets.length - 1)],
+        })),
+      };
+      return es;
+    });
+    showToast(`Swapped ${old.exercise} for ${name}`, () =>
+      updateEntries((es) => {
+        es[ei] = old;
+        return es;
+      }),
+    );
+  };
+
+  /** Moves the start (and the finish, keeping the duration), for back-logged or mis-timed workouts. */
+  const retime = (local: string) => {
+    const start = new Date(local);
+    if (isNaN(start.getTime())) return;
+    const shift = start.getTime() - Date.parse(session.startedAt);
+    save({
+      startedAt: start.toISOString(),
+      ...(session.finishedAt && {
+        finishedAt: new Date(Date.parse(session.finishedAt) + shift).toISOString(),
+      }),
+    });
+  };
+
   /** "tick": count filled-in sets as done; "drop": remove unticked sets (and emptied exercises). */
   const finish = async (unticked: "tick" | "drop" | "none") => {
     let entries = structuredClone(session.entries);
@@ -84,6 +147,7 @@ function Session() {
     router.replace(`/workouts/session?id=${id}&done=1`);
   };
   const unticked = untickedSets(session);
+  const knownNames = all ? knownExerciseNames(all) : [];
 
   const inSuperset = (ei: number) => {
     const g = session.entries[ei].group;
@@ -95,22 +159,31 @@ function Session() {
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {session.dayName ?? "Quick workout"}
-          </h1>
-          <p className="text-xs text-zinc-500">
-            {new Date(session.startedAt).toLocaleString("en-GB", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-            {!finished && <Elapsed since={session.startedAt} />}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold">{session.dayName ?? "Quick workout"}</h1>
+        <p className="text-xs text-zinc-500">
+          {new Date(session.startedAt).toLocaleString("en-GB", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+          {!finished && <Elapsed since={session.startedAt} />}
+          {" · "}
+          <button className="text-zinc-400" onClick={() => setEditingTime(!editingTime)}>
+            {editingTime ? "done" : "edit time"}
+          </button>
+        </p>
+        {editingTime && (
+          <input
+            type="datetime-local"
+            aria-label="Workout start time"
+            className={`${inputCls} mt-2 py-1.5 text-sm`}
+            defaultValue={toLocalInputValue(new Date(session.startedAt))}
+            onChange={(e) => retime(e.target.value)}
+          />
+        )}
       </div>
 
       {finished && justFinished && all && (
@@ -126,6 +199,7 @@ function Session() {
           key={`${ei}:${entry.exercise}`}
           entry={entry}
           index={ei}
+          count={session.entries.length}
           live={!finished}
           superset={inSuperset(ei)}
           prSet={prSets[ei] ?? -1}
@@ -140,6 +214,8 @@ function Session() {
               : undefined
           }
           previousMemo={all ? previousMemo(all, entry.exercise, session.startedAt) : undefined}
+          knownNames={knownNames}
+          barSetup={{ bar, plates }}
           onInfo={() => setInfoFor(entry.exercise)}
           onChange={(fn) =>
             updateEntries((es) => {
@@ -147,7 +223,9 @@ function Session() {
               return es;
             })
           }
-          onRemove={() => updateEntries((es) => es.filter((_, i) => i !== ei))}
+          onRemove={() => removeEntry(ei)}
+          onMove={(dir) => moveEntry(ei, dir)}
+          onSwap={(name) => swapEntry(ei, name)}
           onSetDone={() => startRest(restAfterSet(session.entries, ei))}
         />
       ))}
@@ -162,7 +240,7 @@ function Session() {
           onKeyDown={(e) => e.key === "Enter" && addExercise()}
         />
         <datalist id="exercise-names">
-          {EXERCISE_NAMES.map((n) => (
+          {[...new Set([...knownNames, ...EXERCISE_NAMES])].map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
@@ -231,6 +309,20 @@ function Session() {
             Back
           </button>
           <button
+            className={`${btnGhostCls} flex-1`}
+            onClick={async () => {
+              const live = await db.sessions.filter((x) => !x.finishedAt).first();
+              if (live) {
+                showToast("Finish the workout in progress first");
+                router.push(`/workouts/session?id=${live.id}`);
+                return;
+              }
+              router.push(`/workouts/session?id=${await repeatSession(session)}`);
+            }}
+          >
+            Repeat workout
+          </button>
+          <button
             className="px-3 text-sm text-red-400"
             onClick={async () => {
               if (confirm("Delete this workout?")) {
@@ -258,7 +350,8 @@ function Elapsed({ since }: { since: string }) {
   return <span> · {min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`}</span>;
 }
 
-const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(Math.round(n)).toLocaleString()}`;
+const signed = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(Math.round(n)).toLocaleString()}`;
 
 /** Shown once after finishing: duration, sets and volume vs last time, PRs, lifts ready to go up. */
 function SummaryCard({ summary: s, onDone }: { summary: WorkoutSummary; onDone: () => void }) {
@@ -278,7 +371,9 @@ function SummaryCard({ summary: s, onDone }: { summary: WorkoutSummary; onDone: 
         </div>
         <div>
           <dt className="text-xs text-zinc-400">Volume</dt>
-          <dd className="text-lg font-semibold tabular-nums">{Math.round(s.volume).toLocaleString()} kg</dd>
+          <dd className="text-lg font-semibold tabular-nums">
+            {Math.round(s.volume).toLocaleString()} kg
+          </dd>
           {p && <dd className="text-xs text-zinc-400">{signed(s.volume - p.volume)} kg vs last</dd>}
         </div>
       </dl>
@@ -300,291 +395,5 @@ function SummaryCard({ summary: s, onDone }: { summary: WorkoutSummary; onDone: 
         Done
       </button>
     </section>
-  );
-}
-
-const EFFORTS: { value: Effort; label: string }[] = [
-  { value: "easy", label: "Easy" },
-  { value: "good", label: "Good" },
-  { value: "hard", label: "Hard" },
-];
-
-const shortDay = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-
-/** One exercise in a workout: last time, suggestion, notes, the set grid and how it felt. */
-function EntryCard({
-  entry,
-  index: ei,
-  live,
-  superset,
-  prSet,
-  plan,
-  previousMemo: prevMemo,
-  onInfo,
-  onChange,
-  onRemove,
-  onSetDone,
-}: {
-  entry: SessionEntry;
-  index: number;
-  /** an unfinished workout: shows suggestions and starts the rest timer */
-  live: boolean;
-  superset: boolean;
-  /** index of the set to badge as a PR, or -1 */
-  prSet: number;
-  plan?: ExercisePlan;
-  previousMemo?: string;
-  onInfo: () => void;
-  onChange: (fn: (e: SessionEntry) => SessionEntry) => void;
-  onRemove: () => void;
-  onSetDone: () => void;
-}) {
-  const timed = !!parseRepTarget(entry.target)?.timed;
-  const grid = timed ? TIMED_GRID : SET_GRID;
-  const s = plan?.suggestion;
-  const open = entry.sets.filter((x) => !x.done);
-  const weightChange = s && (s.action === "increase" || s.action === "deload");
-  const applied =
-    !s ||
-    open.every((x) => x.reps === s.reps && (!weightChange || x.weight === s.weight));
-  const anyDone = entry.sets.some((x) => x.done);
-
-  const edit = (fn: (e: SessionEntry) => void) =>
-    onChange((e) => {
-      fn(e);
-      return e;
-    });
-
-  return (
-    <Card
-      title={entry.exercise}
-      leading={<ExerciseThumb name={entry.exercise} onOpen={onInfo} />}
-      className={superset ? "border-l-2 !border-l-emerald-500" : ""}
-      action={
-        <span className="text-right text-xs text-zinc-500">
-          {prSet >= 0 && (
-            <span className="mr-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 font-medium text-amber-300">
-              PR
-            </span>
-          )}
-          {superset && "Superset · "}
-          {entry.target}
-          {entry.rest ? ` · ${entry.rest}s rest` : ""}
-        </span>
-      }
-    >
-      {entry.notes && <p className="mb-2 text-xs text-zinc-500">{entry.notes}</p>}
-
-      {plan?.last && (
-        <p className="mb-1 text-xs text-zinc-400 tabular-nums">
-          <span className="text-zinc-500">
-            Last ({plan.last.dayName ? `${plan.last.dayName.replace(/^.*·\s*/, "")}, ` : ""}
-            {shortDay(plan.last.date)}):
-          </span>{" "}
-          {formatSets(plan.last.sets)}
-          {plan.last.effort && <span className="text-zinc-500"> · felt {plan.last.effort}</span>}
-        </p>
-      )}
-
-      {live && s && open.length > 0 && (
-        <div
-          className={`mb-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs ${
-            s.action === "increase"
-              ? "bg-emerald-500/10 text-emerald-300"
-              : s.action === "deload"
-                ? "bg-amber-400/10 text-amber-300"
-                : "bg-zinc-800/60 text-zinc-300"
-          }`}
-        >
-          <span className="min-w-0">
-            <span className="font-medium tabular-nums">{suggestionLabel(s)}</span>
-            <span className="block text-[11px] opacity-80">{s.reason}</span>
-          </span>
-          {!applied && (
-            <button
-              className="shrink-0 rounded-lg border border-current px-2.5 py-1"
-              onClick={() =>
-                edit((e) => {
-                  for (const x of e.sets) {
-                    if (x.done) continue;
-                    x.reps = s.reps;
-                    if (weightChange) x.weight = s.weight;
-                  }
-                })
-              }
-            >
-              Apply
-            </button>
-          )}
-        </div>
-      )}
-
-      <MemoField
-        memo={entry.memo}
-        previous={prevMemo}
-        onSave={(memo) => edit((e) => void (e.memo = memo || undefined))}
-      />
-
-      <div className={`mb-1 grid ${grid} gap-2 text-xs text-zinc-500`}>
-        <span>#</span>
-        {!timed && <span>kg</span>}
-        <span>{timed ? "min" : "reps"}</span>
-        <span />
-        <span />
-      </div>
-      <div className="space-y-2">
-        {entry.sets.map((set, si) => {
-          // undone sets are a plan, so they read dimmer than what's been lifted
-          const tone = set.done ? "text-zinc-100" : "text-zinc-400";
-          return (
-            <div key={si} className={`grid ${grid} items-center gap-2`}>
-              {prSet === si ? (
-                <span
-                  className="text-[10px] font-semibold text-amber-300"
-                  title="Personal best (estimated 1RM)"
-                  aria-label={`Set ${si + 1}, personal best`}
-                >
-                  PR
-                </span>
-              ) : (
-                <span className="text-sm text-zinc-500">{si + 1}</span>
-              )}
-              {!timed && (
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  aria-label={`Set ${si + 1} weight`}
-                  className={`${inputCls} py-2 ${tone}`}
-                  value={set.weight || ""}
-                  onChange={(e) =>
-                    edit((x) => void (x.sets[si].weight = parseFloat(e.target.value) || 0))
-                  }
-                />
-              )}
-              <input
-                type="number"
-                inputMode={timed ? "decimal" : "numeric"}
-                aria-label={`Set ${si + 1} ${timed ? "minutes" : "reps"}`}
-                className={`${inputCls} py-2 ${tone}`}
-                value={set.reps || ""}
-                onChange={(e) =>
-                  edit(
-                    (x) =>
-                      void (x.sets[si].reps = timed
-                        ? parseFloat(e.target.value) || 0
-                        : parseInt(e.target.value, 10) || 0),
-                  )
-                }
-              />
-              <button
-                onClick={() => {
-                  edit((x) => void (x.sets[si].done = !set.done));
-                  // the rest timer only makes sense during a live workout
-                  if (!set.done && live) onSetDone();
-                }}
-                className={`h-11 rounded-xl text-sm ${
-                  set.done
-                    ? "bg-emerald-500 text-zinc-950"
-                    : "border border-zinc-700 text-zinc-500"
-                }`}
-                aria-label={`Mark set ${si + 1} ${set.done ? "not done" : "done"}`}
-              >
-                ✓
-              </button>
-              {entry.sets.length > 1 ? (
-                <button
-                  aria-label={`Remove set ${si + 1}`}
-                  className="h-11 text-zinc-600 active:text-zinc-300"
-                  onClick={() => edit((x) => void x.sets.splice(si, 1))}
-                >
-                  ✕
-                </button>
-              ) : (
-                <span />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {anyDone && (
-        <div className="mt-3 flex items-center gap-2 text-xs">
-          <span className="text-zinc-500">Felt</span>
-          {EFFORTS.map((f) => (
-            <button
-              key={f.value}
-              aria-pressed={entry.effort === f.value}
-              onClick={() =>
-                edit((e) => void (e.effort = e.effort === f.value ? undefined : f.value))
-              }
-              className={`rounded-full border px-3 py-1 ${
-                entry.effort === f.value
-                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                  : "border-zinc-700 text-zinc-400"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-3 flex justify-between text-xs">
-        <button
-          className="py-1 text-zinc-400"
-          onClick={() =>
-            edit((x) => {
-              const last = x.sets.at(-1);
-              x.sets.push({ weight: last?.weight ?? 0, reps: last?.reps ?? 0, done: false });
-            })
-          }
-        >
-          + Add set
-        </button>
-        <Link href={exerciseProgressHref(entry.exercise)} className="py-1 text-zinc-400">
-          Progress →
-        </Link>
-        <button
-          className="py-1 text-zinc-600"
-          onClick={() => {
-            if (!anyDone || confirm(`Remove ${entry.exercise} and its logged sets?`)) onRemove();
-          }}
-          aria-label={`Remove exercise ${ei + 1}`}
-        >
-          Remove exercise
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-/** The user's own note for one exercise; shows the last note written for it as a hint. */
-function MemoField({
-  memo,
-  previous,
-  onSave,
-}: {
-  memo?: string;
-  previous?: string;
-  onSave: (memo: string) => void;
-}) {
-  const [value, setValue] = useState(memo ?? "");
-  return (
-    <div className="mb-3">
-      {previous && !value && (
-        <p className="mb-1 text-xs text-zinc-400">
-          <span className="text-zinc-500">Last note:</span> {previous}
-        </p>
-      )}
-      <input
-        className={`${inputCls} py-1.5 text-sm`}
-        aria-label="Exercise note"
-        placeholder="Note (seat height, grip, how it felt…)"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => value.trim() !== (memo ?? "") && onSave(value.trim())}
-      />
-    </div>
   );
 }

@@ -1,7 +1,8 @@
 # Fitlog
 
 Personal workout, body-stats and vitals tracker. Local-first PWA: Next.js + TypeScript + Tailwind,
-data in IndexedDB (Dexie). Nothing leaves your device except Withings API calls.
+data in IndexedDB (Dexie). Nothing leaves your device except Withings sync and, when you ask for one,
+a training summary sent to Claude to write your next phase.
 
 ## Run
 
@@ -24,7 +25,10 @@ On your phone, open the deployed URL and use "Add to Home Screen". (Service work
 - **Vitals** – resting HR, blood pressure, SpO₂, sleep, steps.
 - **Photos** – bulk import from the camera roll (dated from EXIF), front/side/back tabs, side-by-side compare
   (stored on-device, resized to save space).
-- **Settings** – Withings sync, CSV import, JSON backup/restore.
+- **Plan next phase** – answer a few questions (goal, focus, days, time, equipment, injuries) and Claude writes
+  the next dated phase from your training history; review/edit, then save. Home reminds you 10 days before a
+  phase ends.
+- **Settings** – Withings sync, CSV import, JSON backup/restore (with reminders and persistent storage).
 
 ## Withings sync
 
@@ -34,6 +38,11 @@ On your phone, open the deployed URL and use "Add to Home Screen". (Service work
 4. Settings → Connect Withings → Sync now.
 
 Tokens are kept in httpOnly cookies; no server database.
+
+## Phase generator
+
+Set `ANTHROPIC_API_KEY` (from console.anthropic.com) and `FITLOG_ACCESS_CODE` (any passphrase) in `.env.local`
+locally and in the Vercel project settings. The app asks for the access code once per device.
 
 ## Backups
 

@@ -4,6 +4,7 @@ import {
   currentPhaseProgramme,
   dayDiff,
   lastEndedPhaseProgramme,
+  nextPhasePrompt,
   phaseEnd,
   phaseError,
   phaseState,
@@ -95,5 +96,28 @@ describe("phaseError", () => {
     expect(phaseError("", 6)).toMatch(/start/);
     expect(phaseError("2026-12-28", 0)).toMatch(/1–26/);
     expect(phaseError("2026-12-28", 2.5)).toMatch(/1–26/);
+  });
+});
+
+describe("nextPhasePrompt", () => {
+  const p6 = prog("Phase 6", phase6);
+
+  it("stays quiet until the running phase is nearly over", () => {
+    expect(nextPhasePrompt([p6], at("2026-12-01"))).toBeUndefined(); // 26 days left
+    expect(nextPhasePrompt([p6], at("2026-12-17"))).toBe("Phase 6 ends in 10 days. Plan your next phase");
+    expect(nextPhasePrompt([p6], at("2026-12-26"))).toBe("Phase 6 ends tomorrow. Plan your next phase");
+    expect(nextPhasePrompt([p6], at("2026-12-27"))).toBe("Phase 6 ends today. Plan your next phase");
+  });
+
+  it("prompts after a phase ends with nothing scheduled", () => {
+    expect(nextPhasePrompt([p6, prog("Home")], at("2027-01-02"))).toBe(
+      "Phase 6 has finished. Plan your next phase",
+    );
+  });
+
+  it("is silent once the next phase is scheduled, or with no phases", () => {
+    const p7 = prog("Phase 7", { start: "2026-12-28", weeks: 6 });
+    expect(nextPhasePrompt([p6, p7], at("2026-12-20"))).toBeUndefined();
+    expect(nextPhasePrompt([prog("Home")], at("2026-12-20"))).toBeUndefined();
   });
 });

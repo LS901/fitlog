@@ -8,6 +8,7 @@ import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
 import { computePRs, doneSets } from "@/lib/workouts";
 import type { MeasureType } from "@/lib/types";
 import { BackupReminder } from "@/components/BackupReminder";
+import { PhaseReminder } from "@/components/PhaseReminder";
 import { Card, Stat, TrendChart } from "@/components/ui";
 
 const startOfWeek = () => {
@@ -81,6 +82,7 @@ export default function Home() {
       </Link>
 
       <BackupReminder />
+      <PhaseReminder />
 
       <div className="grid grid-cols-2 gap-3">
         <Stat

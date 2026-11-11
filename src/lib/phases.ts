@@ -92,3 +92,25 @@ export function phaseError(start: string, weeks: number): string | undefined {
     return `Length must be 1–${MAX_WEEKS} weeks.`;
   return undefined;
 }
+
+/** Show the "plan your next phase" prompt this many days before the running phase ends. */
+export const PLAN_AHEAD_DAYS = 10;
+
+/**
+ * Text for the home-screen prompt to plan the next phase, or undefined when there's nothing to do
+ * (no phases, one already scheduled, or the running one has a while to go).
+ */
+export function nextPhasePrompt(programmes: Programme[], now = new Date()): string | undefined {
+  if (programmes.some((p) => p.phase && phaseState(p.phase, now).state === "upcoming"))
+    return undefined;
+  const current = currentPhaseProgramme(programmes, now);
+  if (current) {
+    const s = phaseState(current.phase!, now);
+    if (s.state !== "active" || s.daysLeft > PLAN_AHEAD_DAYS) return undefined;
+    const when =
+      s.daysLeft === 0 ? "today" : s.daysLeft === 1 ? "tomorrow" : `in ${s.daysLeft} days`;
+    return `${current.name} ends ${when}. Plan your next phase`;
+  }
+  const ended = lastEndedPhaseProgramme(programmes, now);
+  return ended ? `${ended.name} has finished. Plan your next phase` : undefined;
+}

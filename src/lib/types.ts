@@ -55,6 +55,10 @@ export interface Programme {
   phase?: { start: string; weeks: number; alternate?: boolean };
   /** what the user asked for when this programme was generated, to prefill the next one */
   brief?: PhaseBrief;
+  /** generator's explanation of the phase */
+  summary?: string;
+  /** generator's progression / technique tips */
+  notes?: string[];
 }
 
 /** The user's answers to "what do you want from your next phase?", sent to the generator. */

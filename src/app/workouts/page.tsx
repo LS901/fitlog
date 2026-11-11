@@ -95,9 +95,14 @@ export default function WorkoutsPage() {
           onClose={() => setEditing(null)}
         />
       ) : (
-        <button className={`${btnGhostCls} w-full`} onClick={() => setEditing("new")}>
-          + New programme
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <Link href="/workouts/plan" className={`${btnGhostCls} text-center`}>
+            Plan next phase ✦
+          </Link>
+          <button className={btnGhostCls} onClick={() => setEditing("new")}>
+            + New programme
+          </button>
+        </div>
       )}
 
       {prs.length > 0 && (
@@ -223,6 +228,19 @@ function ProgrammeCard({
         >
           {phaseSummary(p.phase)}
         </p>
+      )}
+      {(p.summary || p.notes?.length) && (
+        <details className="mb-3">
+          <summary className="cursor-pointer text-xs text-zinc-400">About this phase</summary>
+          {p.summary && <p className="mt-2 text-sm text-zinc-300">{p.summary}</p>}
+          {!!p.notes?.length && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
+              {p.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+        </details>
       )}
       <div className="space-y-2">
         {p.days.map((d) => (

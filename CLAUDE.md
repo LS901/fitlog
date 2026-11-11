@@ -27,6 +27,14 @@ Tailwind), so keep the code idiomatic and conventional.
 - Phases: any programme can be a dated phase (`Programme.phase = { start, weeks, alternate? }`, set in the programme
   editor). All date maths lives in `src/lib/phases.ts` (local YYYY-MM-DD days, DST-safe); `alternate` defaults to on
   (odd weeks volume, even heavy). Train lists running/upcoming phases first and tucks finished ones under "Past phases".
+- Phase generator (`/workouts/plan`, `src/app/api/plan/route.ts`, pure helpers in `src/lib/plan.ts`): the page builds a
+  compact 12-week training summary (`buildTrainingSummary`) plus the user's brief and POSTs it; the route validates with
+  zod (`PlanRequestSchema`), calls Claude Opus 5.5 (`claude-opus-5-5`, effort high, server-side refusal fallback) with
+  structured output (`PlanOutputSchema`), then normalises the programme through `parseProgrammeText`. The prompt teaches
+  Claude the programme text format and asks it to reuse exact exercise names (weights prefill and progress charts key
+  on the name). Saved phases keep `brief` (prefills next time), `summary` and coach `notes`. Requires
+  `ANTHROPIC_API_KEY` and `FITLOG_ACCESS_CODE`; the page sends the code as `x-fitlog-code` (remembered in localStorage)
+  so strangers can't spend the API credit. Home shows `PhaseReminder` 10 days before a phase ends (`nextPhasePrompt`).
 - Data safety (`src/lib/backup.ts`): Shell calls `navigator.storage.persist()` on load; exports record `lastBackupAt`
   in `settings`; Home shows `BackupReminder` when there's data and no backup for 14+ days. On touch devices export uses
   the share sheet (save to iCloud/Drive), else a download. Restoring sets `lastBackupAt` to the backup's `exportedAt`.
@@ -47,6 +55,8 @@ Tailwind), so keep the code idiomatic and conventional.
 ## Privacy rules
 - Never commit personal data. `/data/` and `.env*` (except `.env.example`) are gitignored.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.
+- Data only leaves the device for Withings sync and, when the user presses Generate, the phase generator (brief +
+  workout/weight summary, never photos). Keep it that way and say so in the UI when adding anything that sends data.
 
 ## Roadmap
 1. ~~**Nutrition + MyFitnessPal.**~~ Done: `/nutrition` page (intake vs target, 7-day average, calories chart), manual

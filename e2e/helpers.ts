@@ -43,7 +43,8 @@ export async function start(page: Page, data: ReturnType<typeof backup>) {
   await page.clock.install({ time: NOW });
   page.on("dialog", (d) => d.accept());
   await page.goto("/settings");
-  await page.locator('input[type="file"][accept*="json"]').setInputFiles({
+  const backupCard = page.locator("section", { has: page.getByRole("heading", { name: "Backup", exact: true }) });
+  await backupCard.locator('input[type="file"]').setInputFiles({
     name: "fitlog-backup.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(data)),

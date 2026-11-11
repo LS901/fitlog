@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -9,6 +9,7 @@ import { EXERCISE_NAMES, exerciseProgressHref, incrementFor } from "@/lib/exerci
 import { parseRepTarget, suggestionLabel } from "@/lib/progression";
 import { restAfterSet } from "@/lib/rest";
 import { startRest, stopRest } from "@/lib/restTimer";
+import { summarise, untickedSets, type WorkoutSummary } from "@/lib/summary";
 import { useSetting } from "@/lib/useSetting";
 import {
   formatSets,
@@ -39,13 +40,16 @@ export default function SessionPage() {
 
 function Session() {
   const router = useRouter();
-  const id = Number(useSearchParams().get("id"));
+  const params = useSearchParams();
+  const id = Number(params.get("id"));
+  const justFinished = params.get("done") === "1";
   const session = useLiveQuery(() => db.sessions.get(id), [id]);
   // every session, for PR badges, last time / suggestions and carried-forward notes
   const all = useLiveQuery(() => db.sessions.toArray(), []);
   const increments = useSetting("exerciseIncrements", NO_INCREMENTS) ?? NO_INCREMENTS;
   const [newEx, setNewEx] = useState("");
   const [infoFor, setInfoFor] = useState<string | null>(null);
+  const [confirmFinish, setConfirmFinish] = useState(false);
 
   if (session === undefined) return null;
   if (!session)
@@ -65,6 +69,21 @@ function Session() {
     updateEntries((es) => [...es, entry]);
     setNewEx("");
   };
+
+  /** "tick": count filled-in sets as done; "drop": remove unticked sets (and emptied exercises). */
+  const finish = async (unticked: "tick" | "drop" | "none") => {
+    let entries = structuredClone(session.entries);
+    if (unticked === "tick")
+      for (const e of entries) for (const x of e.sets) if (x.reps > 0 || x.weight > 0) x.done = true;
+    if (unticked === "drop")
+      entries = entries
+        .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
+        .filter((e) => e.sets.length);
+    await save({ entries, finishedAt: new Date().toISOString() });
+    stopRest();
+    router.replace(`/workouts/session?id=${id}&done=1`);
+  };
+  const unticked = untickedSets(session);
 
   const inSuperset = (ei: number) => {
     const g = session.entries[ei].group;
@@ -89,9 +108,17 @@ function Session() {
               hour: "2-digit",
               minute: "2-digit",
             })}
+            {!finished && <Elapsed since={session.startedAt} />}
           </p>
         </div>
       </div>
+
+      {finished && justFinished && all && (
+        <SummaryCard
+          summary={summarise(session, all, (n) => incrementFor(n, increments))}
+          onDone={() => router.push("/workouts")}
+        />
+      )}
 
       {session.entries.map((entry, ei) => (
         <EntryCard
@@ -153,15 +180,33 @@ function Session() {
 
       {infoFor && <ExerciseModal name={infoFor} onClose={() => setInfoFor(null)} />}
 
-      {!finished && (
+      {!finished && confirmFinish && (
+        <Card title={`${unticked} set${unticked === 1 ? "" : "s"} not ticked`}>
+          <p className="mb-3 text-sm text-zinc-400">
+            Unticked sets don&apos;t count towards PRs, volume or next time&apos;s suggestions.
+          </p>
+          <div className="space-y-2">
+            <button className={`${btnCls} w-full`} onClick={() => finish("tick")}>
+              I did them: tick all and finish
+            </button>
+            <button className={`${btnGhostCls} w-full`} onClick={() => finish("drop")}>
+              Skipped them: drop and finish
+            </button>
+            <button
+              className="w-full py-2 text-sm text-zinc-400"
+              onClick={() => setConfirmFinish(false)}
+            >
+              Keep going
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {!finished && !confirmFinish && (
         <div className="flex gap-2">
           <button
             className={`${btnCls} flex-1`}
-            onClick={async () => {
-              await save({ finishedAt: new Date().toISOString() });
-              stopRest();
-              router.push("/workouts");
-            }}
+            onClick={() => (unticked ? setConfirmFinish(true) : finish("none"))}
           >
             Finish workout
           </button>
@@ -199,6 +244,62 @@ function Session() {
         </div>
       )}
     </div>
+  );
+}
+
+/** " · 42 min" since the workout started, ticking each half minute. */
+function Elapsed({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const min = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));
+  return <span> · {min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`}</span>;
+}
+
+const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(Math.round(n)).toLocaleString()}`;
+
+/** Shown once after finishing: duration, sets and volume vs last time, PRs, lifts ready to go up. */
+function SummaryCard({ summary: s, onDone }: { summary: WorkoutSummary; onDone: () => void }) {
+  const p = s.previous;
+  return (
+    <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+      <h2 className="font-semibold text-emerald-300">Workout done</h2>
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div>
+          <dt className="text-xs text-zinc-400">Time</dt>
+          <dd className="text-lg font-semibold tabular-nums">{s.minutes ?? "—"} min</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-zinc-400">Sets</dt>
+          <dd className="text-lg font-semibold tabular-nums">{s.sets}</dd>
+          {p && <dd className="text-xs text-zinc-400">{signed(s.sets - p.sets)} vs last</dd>}
+        </div>
+        <div>
+          <dt className="text-xs text-zinc-400">Volume</dt>
+          <dd className="text-lg font-semibold tabular-nums">{Math.round(s.volume).toLocaleString()} kg</dd>
+          {p && <dd className="text-xs text-zinc-400">{signed(s.volume - p.volume)} kg vs last</dd>}
+        </div>
+      </dl>
+      {s.prs.length > 0 && (
+        <p className="mt-3 text-sm">
+          <span className="mr-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-300">
+            PR
+          </span>
+          {s.prs.join(", ")}
+        </p>
+      )}
+      {s.readyToIncrease.length > 0 && (
+        <p className="mt-2 text-sm text-zinc-300">
+          <span className="text-emerald-400">↑ Ready to go up next time:</span>{" "}
+          {s.readyToIncrease.join(", ")}
+        </p>
+      )}
+      <button className={`${btnCls} mt-4 w-full`} onClick={onDone}>
+        Done
+      </button>
+    </section>
   );
 }
 

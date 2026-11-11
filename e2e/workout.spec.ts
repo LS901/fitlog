@@ -50,7 +50,18 @@ test("log a heavy day: prefill, suggestion, rest timer, guard, finish", async ({
   await page.getByRole("button", { name: "Resume Session 1 · Heavy" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Session 1 · Heavy" })).toBeVisible();
 
+  // finishing with prefilled-but-unticked sets asks what to do with them
   await page.getByRole("button", { name: "Finish workout" }).click();
-  await expect(page).toHaveURL(/\/workouts/);
+  await expect(page.getByText(/sets not ticked/)).toBeVisible();
+  await page.getByRole("button", { name: /drop and finish/ }).click();
+
+  const summary = page.locator("section", { hasText: "Workout done" });
+  await expect(summary).toBeVisible();
+  await expect(summary.getByText("Barbell Deadlift").first()).toBeVisible(); // PR + ready to go up
+  await expect(summary.getByText("Ready to go up next time")).toBeVisible();
+  await expect(summary.getByText("vs last").first()).toBeVisible();
+  await summary.getByRole("button", { name: "Done" }).click();
+
+  await expect(page).toHaveURL(/\/workouts$/);
   await expect(page.getByText("1 of 3 done")).toBeVisible();
 });

@@ -11,17 +11,32 @@ npm install
 npm run dev          # http://localhost:3000
 # production / installable PWA:
 npm run build && npm start
+npm test             # unit tests (Vitest)
+npm run e2e          # browser smoke tests (Playwright; first time: npx playwright install chromium)
 ```
 
 On your phone, open the deployed URL and use "Add to Home Screen". (Service worker only runs in production builds.)
 
 ## What's in it
 
-- **Train** – programmes (text editor: `# Day`, `Name 4x6 rest 90s (note)`, `+` to superset), live session logging
-  with per-exercise rest timer, previous weights prefilled, history, estimated-1RM bests, PR badges, per-exercise
-  notes and a progress page per exercise (1RM / top set / volume charts).
-  Seeded with ExpertPT Phase 6 (2 Nov – 27 Dec 2026); odd weeks = volume, even weeks = heavy.
-- **Body** – weight, body fat, muscle mass, tape measurements, trend charts.
+- **Train** – programmes (text editor: `# Day`, `Name 4x6 rest 90s (note)`, `+` to superset) and live session
+  logging. Highlights:
+  - "Up next" picks this week's next session (the right heavy/volume variant), with the warm-up added on.
+  - Sets are prefilled from the same day last time, with a **progression suggestion** (double progression: hit the
+    top of the rep range → add the equipment's weight step; missed reps → hold; stuck three times → deload).
+    An optional Easy / Good / Hard tap per exercise sharpens it.
+  - A rest timer that survives locking the phone (beep and buzz, ±15s, superset-aware), screen kept awake.
+  - Plates per side and warm-up ramps for barbell lifts, warm-up sets, swapping a busy machine for a same-muscle
+    alternative, reordering, undo.
+  - Finish summary: time, sets and volume vs last time, PRs, and lifts ready to go up.
+  - History, estimated-1RM bests, PR badges, per-exercise notes and a progress page per exercise (charts,
+    next-time suggestion, weight step, strength relative to body weight).
+  - **Insights**: training heatmap and streak, sets per muscle group per week, stalled lifts and deload nudge, phase
+    report.
+  - Seeded with ExpertPT Phase 6 (2 Nov – 27 Dec 2026); odd weeks = volume, even weeks = heavy. ExpertPT history can
+    be imported in Settings.
+- **Body** – weight, body fat, muscle mass, tape measurements, trend charts; goal ETA from the weight trend.
+- **Food** – daily calories/macros vs targets (manual or MyFitnessPal CSV), estimated maintenance calories.
 - **Vitals** – resting HR, blood pressure, SpO₂, sleep, steps.
 - **Photos** – bulk import from the camera roll (dated from EXIF), front/side/back tabs, side-by-side compare
   (stored on-device, resized to save space).

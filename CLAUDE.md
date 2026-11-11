@@ -9,7 +9,10 @@ Tailwind), so keep the code idiomatic and conventional.
 ## Commands
 - `npm run dev` – dev server (http://localhost:3000)
 - `npm run build && npm start` – production build (the service worker only registers in production)
-- `npm test` – Vitest unit tests (`src/**/*.test.ts`, node environment, pure functions only)
+- `npm test` – Vitest unit tests (`src/**/*.test.ts`, node environment). Mostly pure functions; Dexie-backed code
+  is tested against `fake-indexeddb` (`import "fake-indexeddb/auto"`, see `workouts.db.test.ts`)
+- `npm run e2e` – Playwright smoke tests in `e2e/` (phone-sized Chromium, starts `next dev -p 3100`). `e2e/helpers.ts`
+  fixes the clock to 11 Nov 2026 (Phase 6 week 2, heavy) and loads data through Settings → Restore.
 - `npx tsc --noEmit`, `npx eslint src` and `npm test` – must all be clean before committing
 - Fresh clone: `npx next typegen` (or any dev/build) before `tsc`, or `LayoutProps` is missing
 
@@ -42,6 +45,24 @@ Tailwind), so keep the code idiomatic and conventional.
   public-domain free-exercise-db, hand-mapped to the seeded programme's names; `approx` marks a similar-but-not-identical
   exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted
   YouTube/Vimeo link stored in `settings` (`exerciseVideos`). Unknown exercises get no description but keep the video options.
+- Training loop (all pure helpers unit-tested):
+  - `src/lib/progression.ts`: `parseRepTarget`, `suggestNext` (double progression + effort nudge + miss streak/deload),
+    `defaultIncrement` by equipment; `incrementFor` (exercises.ts) applies per-exercise overrides from
+    `settings.exerciseIncrements` (keyed by `exerciseKey`).
+  - `workouts.ts`: names match via `exerciseKey` (case/punctuation-insensitive, so imported history joins up);
+    `isWorking` = done and not `kind: "warmup"` (warm-ups never count for PRs, volume or suggestions);
+    `planExercise` uses the same `dayName`'s history first (`variantHistory`), so heavy follows heavy;
+    `startSession`/`newEntry`/`repeatSession` prefill via `buildEntry`/`prefillSets`.
+  - `schedule.ts`: `weekPlan` (this week's days: matching heavy/volume variant, warm-up days excluded, done by
+    `dayName`), `activeProgramme`. `StartWorkout.tsx`'s `useStartWorkout` is the only way to start a programme day:
+    prepends the warm-up day (`settings.includeWarmup`) and refuses a second live session.
+  - Rest timer: end timestamp in localStorage (`restTimer.ts`), rendered in the nav by `RestTimer`; `restAfterSet`
+    (rest.ts) waits for the last exercise of a superset. Toasts with Undo: `showToast` (toast.ts) / `ToastBar`.
+  - `summary.ts` (finish summary), `plates.ts` (plates per side, warm-up ramp), `insights.ts` (muscle sets per group,
+    heatmap/streak, stalled lifts, phase report), `trends.ts` (weight slope, goal ETA, maintenance kcal).
+  - Session page is keyed by `id` (Repeat navigates to another id on the same page). Next keeps previous pages
+    mounted after navigating, so close any `<dialog>` before calling `router.push`.
+  - Other settings keys: `displayName`, `includeWarmup`, `wakeLock`, `barKg`, `plates`.
 - Withings: OAuth2 + measure sync run in route handlers (`src/app/api/withings/*`, `src/lib/withings.ts`);
   tokens are httpOnly cookies; client pulls rows and writes them to Dexie, de-duplicating on `ext`.
   Needs `WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI` in `.env.local` (see `.env.example`).
@@ -89,3 +110,11 @@ Tailwind), so keep the code idiomatic and conventional.
 6. ~~**Tests.**~~ Done: Vitest for the programme parser (incl. seed round-trip), measurement + nutrition CSV parsers,
    `series` helpers and workout logic (`computePRs`, `exerciseHistory`, `prSetIndexes`, `previousMemo`). Keep new
    logic in pure functions in `src/lib` so it stays testable without IndexedDB.
+7. ~~**Training loop & insights.**~~ Done (Nov 2026 UX pass): progression suggestions + effort tap, heavy/volume-aware
+   prefill, "last time" line, persistent superset-aware rest timer, up next + one-live-workout guard + warm-up add-on,
+   finish check + summary, plates/warm-up calculator, warm-up sets, swap/reorder/undo, wake lock, edit time, repeat,
+   Insights page (muscle volume, heatmap/streak, stalls/deload nudge, phase report), weight trend/ETA, maintenance
+   calories, generator gets adherence + stalls, Playwright e2e + fake-indexeddb tests.
+
+Ideas not built yet: per-set RPE, supersets/circuits editor UI (beyond the text format), rest timer notifications
+when the PWA is backgrounded (needs push), kg/lb units, exercise library beyond the seeded programme.

@@ -2,7 +2,7 @@ import { findExercise } from "./exercises";
 import { localDay } from "./nutrition";
 import { addDays, dayDiff, phaseEnd } from "./phases";
 import { isWarmupDay, mondayOf } from "./schedule";
-import type { Programme, WorkoutSession } from "./types";
+import type { Programme, ProgrammeDay, WorkoutSession } from "./types";
 import { exerciseHistory, isWorking, knownExerciseNames, planExercise, sameExercise } from "./workouts";
 
 /* ---------- sets per muscle group ---------- */
@@ -43,35 +43,45 @@ export const WEEKLY_SET_GUIDE = { min: 10, max: 20 };
 
 const CONDITIONING = /stretch|mobility|treadmill|elliptical|rowing|cross ?trainer|bike|walk/i;
 
+const emptyGroups = () =>
+  Object.fromEntries(MUSCLE_GROUPS.map((g) => [g, 0])) as Record<MuscleGroup, number>;
+
 /**
- * Working sets per muscle group in finished sessions between `from` and `to` (local days,
- * inclusive): a primary muscle counts the set in full, a secondary muscle half. Cardio and stretches
- * are left out, as are exercises the library doesn't know.
+ * Adds `n` sets of `exercise` to `out`: a primary muscle counts the set in full, a secondary muscle
+ * half. Cardio, stretches and exercises the library doesn't know are left out.
  */
+function addMuscleSets(out: Record<MuscleGroup, number>, exercise: string, n: number) {
+  const info = findExercise(exercise)?.info;
+  if (!n || !info || CONDITIONING.test(exercise) || CONDITIONING.test(info.name)) return;
+  const add = (muscles: string[], weight: number) => {
+    // a set hitting two muscles of the same group counts once for that group
+    const groups = new Set(muscles.map((m) => GROUP_OF[m]).filter(Boolean));
+    for (const g of groups) out[g] += n * weight;
+  };
+  add(info.muscles, 1);
+  add(info.secondary.filter((m) => !info.muscles.some((p) => GROUP_OF[p] === GROUP_OF[m])), 0.5);
+}
+
+/** Working sets per muscle group in finished sessions between `from` and `to` (local days, inclusive). */
 export function muscleSets(
   sessions: WorkoutSession[],
   from: string,
   to: string,
 ): Record<MuscleGroup, number> {
-  const out = Object.fromEntries(MUSCLE_GROUPS.map((g) => [g, 0])) as Record<MuscleGroup, number>;
+  const out = emptyGroups();
   for (const s of sessions) {
     if (!s.finishedAt) continue;
     const day = localDay(new Date(s.startedAt));
     if (day < from || day > to) continue;
-    for (const e of s.entries) {
-      const info = findExercise(e.exercise)?.info;
-      if (!info || CONDITIONING.test(e.exercise) || CONDITIONING.test(info.name)) continue;
-      const n = e.sets.filter(isWorking).length;
-      if (!n) continue;
-      const add = (muscles: string[], weight: number) => {
-        // a set hitting two muscles of the same group counts once for that group
-        const groups = new Set(muscles.map((m) => GROUP_OF[m]).filter(Boolean));
-        for (const g of groups) out[g] += n * weight;
-      };
-      add(info.muscles, 1);
-      add(info.secondary.filter((m) => !info.muscles.some((p) => GROUP_OF[p] === GROUP_OF[m])), 0.5);
-    }
+    for (const e of s.entries) addMuscleSets(out, e.exercise, e.sets.filter(isWorking).length);
   }
+  return out;
+}
+
+/** Planned sets per muscle group across `days` (e.g. one week of a programme), counted like `muscleSets`. */
+export function plannedMuscleSets(days: ProgrammeDay[]): Record<MuscleGroup, number> {
+  const out = emptyGroups();
+  for (const d of days) for (const e of d.exercises) addMuscleSets(out, e.name, e.sets);
   return out;
 }
 

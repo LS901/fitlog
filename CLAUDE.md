@@ -38,6 +38,13 @@ Tailwind), so keep the code idiomatic and conventional.
   on the name). Saved phases keep `brief` (prefills next time), `summary` and coach `notes`. Requires
   `ANTHROPIC_API_KEY` and `FITLOG_ACCESS_CODE`; the page sends the code as `x-fitlog-code` (remembered in localStorage)
   so strangers can't spend the API credit. Home shows `PhaseReminder` 10 days before a phase ends (`nextPhasePrompt`).
+- Coach playbook (experiment, `src/lib/playbook.ts`, `PlaybookCard` in Settings, `settings.coachPlaybook`): a coach's
+  philosophy (free text) plus hard rules (max sets per muscle per week, rep range, max exercises per session, banned
+  exercises). With it, `planSystem(playbook)` switches the system prompt to "drafting for a coach" and appends the
+  playbook; `/api/plan` runs `checkPlaybook` on the draft and, if rules are broken, asks Claude once more to fix them
+  (`playbookCheck` in the response). The plan page re-runs `checkPlaybook` live as the programme is edited and can
+  untick the playbook to compare with a plain draft. Saved phases keep `draft` (as generated) and `coach`, so coach
+  edits can be compared later. Sets per muscle use `plannedMuscleSets` (insights.ts, same counting as `muscleSets`).
 - Data safety (`src/lib/backup.ts`): Shell calls `navigator.storage.persist()` on load; exports record `lastBackupAt`
   in `settings`; Home shows `BackupReminder` when there's data and no backup for 14+ days. On touch devices export uses
   the share sheet (save to iCloud/Drive), else a download. Restoring sets `lastBackupAt` to the backup's `exportedAt`.

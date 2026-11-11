@@ -59,6 +59,10 @@ export interface Programme {
   summary?: string;
   /** generator's progression / technique tips */
   notes?: string[];
+  /** programme text exactly as generated, before any edits (to see what a coach changed) */
+  draft?: string;
+  /** set when the phase was drafted with a coach playbook: the coach's name, or "Coach" */
+  coach?: string;
 }
 
 /** The user's answers to "what do you want from your next phase?", sent to the generator. */

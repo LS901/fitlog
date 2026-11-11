@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, getGoals } from "@/lib/db";
 import { parseProgrammeText } from "@/lib/measures";
 import { addDays, phaseError, suggestedPhaseStart } from "@/lib/phases";
 import { buildTrainingSummary, type PlanResponse } from "@/lib/plan";
+import {
+  EMPTY_PLAYBOOK,
+  PLAYBOOK_KEY,
+  PlaybookSchema,
+  checkPlaybook,
+  hasPlaybook,
+  type Playbook,
+} from "@/lib/playbook";
 import type { PhaseBrief, Programme } from "@/lib/types";
+import { useSetting } from "@/lib/useSetting";
 import { Card, Chip, btnCls, btnGhostCls, inputCls } from "@/components/ui";
 
 const GOALS = ["Build muscle", "Get stronger", "Lose fat, keep muscle", "General fitness"];
@@ -87,6 +97,15 @@ function Planner({
   const [result, setResult] = useState<PlanResponse | null>(null);
   const [name, setName] = useState("");
   const [text, setText] = useState("");
+  const storedPlaybook = useSetting<Playbook>(PLAYBOOK_KEY, EMPTY_PLAYBOOK);
+  // drop anything that wouldn't pass the server's validation (e.g. edited by hand in a backup)
+  const parsedPlaybook = PlaybookSchema.safeParse(storedPlaybook);
+  const playbook = parsedPlaybook.success && hasPlaybook(parsedPlaybook.data) ? parsedPlaybook.data : undefined;
+  const coachLabel = playbook?.coachName?.trim() || "Coach";
+  const [usePlaybook, setUsePlaybook] = useState(true);
+  const withPlaybook = usePlaybook && !!playbook;
+  /** coach whose playbook drafted the current result */
+  const [resultCoach, setResultCoach] = useState<string | undefined>();
   const abort = useRef<AbortController | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -131,6 +150,7 @@ function Planner({
         notes: brief.notes?.trim() || undefined,
       },
       summary,
+      ...(withPlaybook && { playbook }),
     };
 
     setBusy(true);
@@ -147,6 +167,7 @@ function Planner({
       if (!res.ok) throw new Error(json.error ?? `Something went wrong (${res.status}).`);
       const plan = json as PlanResponse;
       setResult(plan);
+      setResultCoach(withPlaybook ? coachLabel : undefined);
       setName(plan.name);
       setText(plan.programme);
       setBrief(payload.brief);
@@ -180,11 +201,22 @@ function Planner({
       brief,
       summary: result?.summary,
       notes: result?.coachNotes,
+      draft: result?.programme,
+      coach: resultCoach,
     });
     router.push("/workouts");
   };
 
   const goalChoice = customGoal.trim() ? "" : brief.goal;
+  // re-checked as the programme is edited, so fixing a rule break by hand clears it
+  const ruleBreaks =
+    result?.playbookCheck && playbook
+      ? checkPlaybook(
+          parseProgrammeText(text).filter((d) => d.exercises.length),
+          playbook,
+          brief.alternate,
+        )
+      : null;
 
   return (
     <div className="space-y-4 pt-2">
@@ -347,10 +379,35 @@ function Planner({
             onChange={(e) => setCode(e.target.value)}
           />
         </label>
+        {playbook ? (
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-emerald-500"
+              checked={usePlaybook}
+              onChange={(e) => setUsePlaybook(e.target.checked)}
+            />
+            <span>
+              Draft with {playbook.coachName?.trim() ? `${playbook.coachName.trim()}'s` : "the coach"} playbook
+              <span className="block text-xs text-zinc-500">
+                Claude programs the coach&apos;s way, and the hard rules are checked. Untick to compare
+                with a plain draft.
+              </span>
+            </span>
+          </label>
+        ) : (
+          <p className="mt-3 text-xs text-zinc-500">
+            Coach?{" "}
+            <Link href="/settings" className="text-emerald-400">
+              Add a playbook in Settings
+            </Link>{" "}
+            and phases are drafted your way.
+          </p>
+        )}
         <p className="mt-2 text-xs text-zinc-500">
-          Sends your answers and a summary of your last 12 weeks of workouts and body weight to
-          Anthropic&apos;s Claude to write the plan. Photos and other measurements stay on this
-          device.
+          Sends your answers{withPlaybook ? ", the coach playbook" : ""} and a summary of your last
+          12 weeks of workouts and body weight to Anthropic&apos;s Claude to write the plan. Photos
+          and other measurements stay on this device.
         </p>
         {busy ? (
           <div className="mt-3 flex items-center gap-3">
@@ -371,7 +428,10 @@ function Planner({
           </button>
         )}
         {busy && (
-          <p className="mt-2 text-xs text-zinc-500">This usually takes one to two minutes.</p>
+          <p className="mt-2 text-xs text-zinc-500">
+            This usually takes one to two minutes
+            {withPlaybook ? ", longer if a second pass is needed to meet the playbook" : ""}.
+          </p>
         )}
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
       </Card>
@@ -386,7 +446,29 @@ function Planner({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+              {resultCoach && (
+                <p className="text-xs font-medium text-emerald-400">Drafted with {resultCoach}&apos;s playbook</p>
+              )}
               <p className="text-sm text-zinc-300">{result.summary}</p>
+              {result.playbookCheck &&
+                ruleBreaks &&
+                (ruleBreaks.length === 0 ? (
+                  <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                    ✓ Meets every hard rule in the playbook
+                    {result.playbookCheck.fixed > 0 &&
+                      ` (a second pass fixed ${result.playbookCheck.fixed} rule break${result.playbookCheck.fixed === 1 ? "" : "s"})`}
+                    .
+                  </p>
+                ) : (
+                  <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                    <p className="font-medium">Breaks the playbook. Edit the programme to fix:</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                      {ruleBreaks.map((r) => (
+                        <li key={r}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               {result.warnings.map((w) => (
                 <p key={w} className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
                   {w}

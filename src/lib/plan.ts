@@ -10,6 +10,7 @@ import { localDay } from "./nutrition";
 import { incrementFor } from "./exercises";
 import { phaseReport, stalledLifts } from "./insights";
 import { exerciseHistory } from "./workouts";
+import { PlaybookSchema, renderPlaybook, type Playbook } from "./playbook";
 import type { Measurement, Programme, WorkoutSession } from "./types";
 
 /* ---------- request ---------- */
@@ -70,6 +71,8 @@ export const TrainingSummarySchema = z.object({
 export const PlanRequestSchema = z.object({
   brief: PhaseBriefSchema,
   summary: TrainingSummarySchema,
+  /** coach playbook to draft with (experiment, see playbook.ts) */
+  playbook: PlaybookSchema.optional(),
 });
 
 export type TrainingSummary = z.infer<typeof TrainingSummarySchema>;
@@ -94,6 +97,13 @@ export type PlanOutput = z.infer<typeof PlanOutputSchema>;
 export interface PlanResponse extends PlanOutput {
   /** non-fatal issues with the generated programme, shown to the user */
   warnings: string[];
+  /** only when drafted with a playbook */
+  playbookCheck?: {
+    /** rule breaks in the first draft that a second pass fixed */
+    fixed: number;
+    /** rule breaks still in the returned programme */
+    remaining: string[];
+  };
 }
 
 /* ---------- training summary (client side) ---------- */
@@ -228,9 +238,11 @@ export function buildTrainingSummary({
 
 /* ---------- prompt (server side) ---------- */
 
-export const PLAN_SYSTEM = `You are an experienced strength and conditioning coach. You write the next training phase for one client, who trains on their own and logs every session in an app called fitlog. They used to have a personal trainer; your phase replaces the trainer's programming, so it should be the kind of plan a good PT would hand over: sensible exercise selection and order, realistic volume for the time available, supersets where they save time, and a clear progression across the weeks.
+const SOLO_INTRO = `You are an experienced strength and conditioning coach. You write the next training phase for one client, who trains on their own and logs every session in an app called fitlog. They used to have a personal trainer; your phase replaces the trainer's programming, so it should be the kind of plan a good PT would hand over: sensible exercise selection and order, realistic volume for the time available, supersets where they save time, and a clear progression across the weeks.`;
 
-Write the programme in fitlog's plain-text format, which the app parses line by line:
+const COACHED_INTRO = `You are drafting the next training phase for one client of a personal trainer. The client logs every session in an app called fitlog; their coach reviews your draft before the client sees it. Write the kind of plan this coach would hand over: sensible exercise selection and order, realistic volume for the time available, supersets where they save time, and a clear progression across the weeks.`;
+
+const PLAN_RULES = `Write the programme in fitlog's plain-text format, which the app parses line by line:
 - "# Day name" starts a workout day. Every exercise line belongs to the day above it.
 - An exercise line is "Exercise name SETSxREPS", e.g. "Goblet squats 4x10". REPS may be a range ("8-12") or a time ("30s").
 - Optional "rest 90s" or "rest 2m" after the sets, e.g. "Barbell Deadlift 4x6 rest 2m".
@@ -246,6 +258,14 @@ If the client asks for alternating weeks, the phase alternates volume weeks (odd
 You may add one short warm-up/mobility day named "# Warm-up & mobility" that the client runs before each session.
 
 Respect anything the client says to avoid; never include an exercise that aggravates a stated injury. Keep coach notes concrete (e.g. when and by how much to add weight), not generic motivation.`;
+
+/** System prompt: solo, or drafting for a coach with their playbook appended. */
+export function planSystem(playbook?: Playbook): string {
+  const parts = playbook
+    ? [COACHED_INTRO, PLAN_RULES, renderPlaybook(playbook)]
+    : [SOLO_INTRO, PLAN_RULES];
+  return parts.join("\n\n");
+}
 
 export function renderPlanPrompt({ brief, summary }: PlanRequest, libraryNames: string[]): string {
   const lines: string[] = [];

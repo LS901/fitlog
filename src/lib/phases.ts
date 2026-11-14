@@ -6,6 +6,14 @@ export type WeekFocus = "volume" | "heavy";
 
 const MAX_WEEKS = 26;
 
+/** The heavy / volume variant a day name belongs to ("Session 1 · Heavy" → "heavy"), if any. */
+export function dayFocus(name: string | undefined): WeekFocus | undefined {
+  const n = (name ?? "").toLowerCase();
+  if (/\bheav(y|ier)\b/.test(n)) return "heavy";
+  if (/\bvolume\b/.test(n)) return "volume";
+  return undefined;
+}
+
 /** Whole days from `a` to `b` (both YYYY-MM-DD), immune to DST. */
 export function dayDiff(a: string, b: string) {
   const utc = (d: string) => {

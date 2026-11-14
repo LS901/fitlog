@@ -1,6 +1,7 @@
 import { db, getExerciseIncrements } from "./db";
 import { exerciseKey, incrementFor } from "./exercises";
 import { e1rm } from "./measures";
+import { dayFocus } from "./phases";
 import { parseRepTarget, suggestNext, type Suggestion } from "./progression";
 import type { Effort, ProgrammeDay, SessionEntry, SetLog, WorkoutSession } from "./types";
 
@@ -58,14 +59,25 @@ export function exerciseHistory(sessions: WorkoutSession[], exercise: string): E
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** How far behind the latest session a same-variant match may be before it's treated as stale. */
+export const VARIANT_MAX_GAP_DAYS = 28;
+
 /**
- * The history to progress from: sessions of the same programme day when there are any (so a heavy
- * week follows the last heavy week, not last week's volume day), else everything.
+ * The history to progress from: so a heavy week follows the last heavy week, not last week's volume
+ * day. Matches on the heavy / volume variant ("Session 3 · Heavy" ~ "Session 1 · Heavy"), since
+ * programmes reuse day numbers across phases and an exercise often moves day; names without a
+ * variant match exactly. The match is only used while it's recent (within `VARIANT_MAX_GAP_DAYS` of
+ * the latest session of the exercise); an old one from a previous programme would drag the
+ * suggestion back to long-outgrown weights, so then everything is used.
  */
 export function variantHistory(history: ExercisePoint[], dayName?: string): ExercisePoint[] {
-  if (!dayName) return history;
-  const same = history.filter((p) => p.dayName === dayName);
-  return same.length ? same : history;
+  if (!dayName || !history.length) return history;
+  const focus = dayFocus(dayName);
+  const same = history.filter((p) => (focus ? dayFocus(p.dayName) === focus : p.dayName === dayName));
+  const latest = same.at(-1);
+  if (!latest) return history;
+  const gap = (Date.parse(history.at(-1)!.date) - Date.parse(latest.date)) / 86_400_000;
+  return gap <= VARIANT_MAX_GAP_DAYS ? same : history;
 }
 
 export interface ExercisePlan {

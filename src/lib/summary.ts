@@ -6,6 +6,7 @@ import {
   planExercise,
   prSetIndexes,
   sessionVolume,
+  VARIANT_MAX_GAP_DAYS,
 } from "./workouts";
 
 export interface WorkoutSummary {
@@ -25,7 +26,7 @@ const minutesOf = (s: WorkoutSession) =>
     ? Math.round((Date.parse(s.finishedAt) - Date.parse(s.startedAt)) / 60000)
     : undefined;
 
-/** What a just-finished workout achieved, compared with the last time that day was trained. */
+/** What a just-finished workout achieved, compared with the last time that day was trained (within 4 weeks). */
 export function summarise(
   session: WorkoutSession,
   all: WorkoutSession[],
@@ -38,7 +39,9 @@ export function summarise(
             s.finishedAt &&
             s.id !== session.id &&
             s.dayName === session.dayName &&
-            s.startedAt < session.startedAt,
+            s.startedAt < session.startedAt &&
+            // programmes reuse day names ("Session 1"), so an old one is a different workout
+            Date.parse(session.startedAt) - Date.parse(s.startedAt) <= VARIANT_MAX_GAP_DAYS * 86_400_000,
         )
         .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]
     : undefined;

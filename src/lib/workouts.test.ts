@@ -200,6 +200,30 @@ describe("planning the next session", () => {
     expect(variantHistory(h).at(-1)?.effort).toBe("good");
   });
 
+  it("matches heavy with heavy across day numbers", () => {
+    const moved = { ...heavy, dayName: "Session 3 (fewer reps / heavier load)" };
+    const h = exerciseHistory([moved, volume], "Deadlift");
+    expect(variantHistory(h, "Session 1 · Heavy").map((p) => p.topWeight)).toEqual([100]);
+  });
+
+  it("ignores a stale same-variant match from an old programme", () => {
+    // the exercise was last done heavy on this day name long ago, then trained recently elsewhere
+    const old = day("2025-02-02", "Session 3 · Heavy", 20, 6);
+    const recentVolume = day("2026-11-06", "Session 3 · Volume", 30, 10);
+    const recentHeavy = day("2026-10-26", "Session 1 · Heavy", 30, 8);
+    expect(
+      planExercise([old, recentVolume], "Deadlift", { dayName: "Session 3 · Heavy", target: "4×6", increment: 2.5 })
+        .last?.topWeight,
+    ).toBe(30);
+    const plan = planExercise([old, recentHeavy, recentVolume], "Deadlift", {
+      dayName: "Session 3 · Heavy",
+      target: "4×6",
+      increment: 2.5,
+    });
+    expect(plan.last?.date).toBe(recentHeavy.startedAt);
+    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 32.5, reps: 6 });
+  });
+
   it("prefills a heavy day from the last heavy day, with the suggested weight", () => {
     const plan = planExercise([heavy, volume], "Deadlift", {
       dayName: "Session 1 · Heavy",

@@ -51,6 +51,11 @@ describe("summarise", () => {
     expect(sum.readyToIncrease).toEqual(["Deadlift"]);
   });
 
+  it("doesn't compare with a same-named day from an old programme", () => {
+    const old = s(4, "2025-02-02", "Session 1 · Heavy", [{ exercise: "Bench", sets: [set(20, 6)] }]);
+    expect(summarise(now, [old, now], () => 5).previous).toBeUndefined();
+  });
+
   it("has no comparison for a first or unnamed session", () => {
     expect(summarise({ ...now, dayName: undefined }, [before, now], () => 5).previous).toBeUndefined();
   });

@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 import { requestPersistentStorage } from "@/lib/backup";
 import { seedIfEmpty } from "@/lib/seed";
+import { hasToast, showToast } from "@/lib/toast";
+import { autoSyncWithings } from "@/lib/withingsSync";
 import { RestTimer } from "./RestTimer";
 import { ToastBar } from "./Toast";
 
@@ -30,6 +32,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
     seedIfEmpty();
     // all data is on-device, so ask the browser not to evict it
     requestPersistentStorage();
+  }, []);
+
+  useEffect(() => {
+    // Withings can't push into on-device storage, so pull new readings whenever the app is opened,
+    // comes back to the foreground or reconnects, and every few minutes while it's on screen
+    const run = async () => {
+      if (document.visibilityState !== "visible") return;
+      const added = await autoSyncWithings();
+      if (added && !hasToast()) showToast(`Withings: ${added} new reading${added === 1 ? "" : "s"}`);
+    };
+    void run();
+    const timer = setInterval(run, 5 * 60_000);
+    document.addEventListener("visibilitychange", run);
+    window.addEventListener("online", run);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", run);
+      window.removeEventListener("online", run);
+    };
   }, []);
 
   useEffect(() => {

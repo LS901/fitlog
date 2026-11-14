@@ -10,7 +10,8 @@ import {
   saveBackup,
   setLastBackup,
 } from "@/lib/backup";
-import { addMeasurements, db, importAll } from "@/lib/db";
+import { addMeasurements, importAll } from "@/lib/db";
+import { forgetWithingsSync, syncWithings } from "@/lib/withingsSync";
 import { parseMeasurementCsv } from "@/lib/measures";
 import { GoalsCard } from "@/components/GoalsCard";
 import { PlaybookCard } from "@/components/PlaybookCard";
@@ -48,30 +49,24 @@ function Settings() {
     setBusy(true);
     setMsg("");
     try {
-      let since = 0;
-      if (!full) {
-        const last = await db.measurements.where("source").equals("withings" as never).last().catch(() => undefined);
-        void last;
-        const stored = localStorage.getItem("fitlog.withings.lastSync");
-        since = stored ? Number(stored) : 0;
-      }
-      const res = await fetch(`/api/withings/sync?since=${since}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Sync failed");
-      const added = await addMeasurements(
-        json.rows.map((r: { date: string; type: never; value: number; ext: string }) => ({
-          ...r,
-          source: "withings" as const,
-        })),
-      );
-      localStorage.setItem("fitlog.withings.lastSync", String(Math.floor(Date.now() / 1000) - 60));
-      setMsg(`Synced ${json.rows.length} readings, ${added} new.`);
+      const { rows, added } = await syncWithings(full);
+      setMsg(`Synced ${rows} readings, ${added} new.`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Sync failed");
+      if (e instanceof Error && e.message === "not_connected") loadStatus();
     } finally {
       setBusy(false);
     }
   };
+
+  // straight after connecting, pull everything once; from then on the app syncs by itself
+  const firstSync = useRef(false);
+  useEffect(() => {
+    if (flash !== "connected" || firstSync.current) return;
+    firstSync.current = true;
+    void sync(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flash]);
 
   const importCsv = async (f?: File) => {
     if (!f) return;
@@ -107,7 +102,7 @@ function Settings() {
         <p className="rounded-xl bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
           {msg ||
             (flash === "connected"
-              ? "Withings connected. Tap Sync now."
+              ? "Withings connected. Syncing…"
               : flash === "unconfigured"
                 ? "Withings keys aren't set up yet (see below)."
                 : "Withings connection failed. Try again.")}
@@ -148,6 +143,7 @@ function Settings() {
               className="text-xs text-zinc-500"
               onClick={async () => {
                 await fetch("/api/withings/disconnect", { method: "POST" });
+                forgetWithingsSync();
                 loadStatus();
               }}
             >
@@ -156,8 +152,8 @@ function Settings() {
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-500">
-          Pulls weight, body fat, muscle mass, blood pressure, heart rate and SpO₂. Data is
-          stored on this device.
+          Pulls weight, body fat, muscle mass, blood pressure, heart rate and SpO₂, automatically
+          whenever the app is opened (once you&apos;ve synced here). Data is stored on this device.
         </p>
       </Card>
 

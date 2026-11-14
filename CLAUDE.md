@@ -58,7 +58,10 @@ Tailwind), so keep the code idiomatic and conventional.
     `settings.exerciseIncrements` (keyed by `exerciseKey`).
   - `workouts.ts`: names match via `exerciseKey` (case/punctuation-insensitive, so imported history joins up);
     `isWorking` = done and not `kind: "warmup"` (warm-ups never count for PRs, volume or suggestions);
-    `planExercise` uses the same `dayName`'s history first (`variantHistory`), so heavy follows heavy;
+    `planExercise` uses the same heavy/volume variant's history first (`variantHistory`, `dayFocus` in phases.ts),
+    so heavy follows heavy. It matches the variant, not the day name (ExpertPT reused "Session 1/2/3" across
+    phases and exercises move days), and ignores a match more than `VARIANT_MAX_GAP_DAYS` (28) behind the latest
+    session of that exercise. The finish summary's "last time this day" uses the same 28-day cut-off;
     `startSession`/`newEntry`/`repeatSession` prefill via `buildEntry`/`prefillSets`.
   - `schedule.ts`: `weekPlan` (this week's days: matching heavy/volume variant, warm-up days excluded, done by
     `dayName`), `activeProgramme`. `StartWorkout.tsx`'s `useStartWorkout` is the only way to start a programme day:
@@ -71,7 +74,10 @@ Tailwind), so keep the code idiomatic and conventional.
     mounted after navigating, so close any `<dialog>` before calling `router.push`.
   - Other settings keys: `displayName`, `includeWarmup`, `wakeLock`, `barKg`, `plates`.
 - Withings: OAuth2 + measure sync run in route handlers (`src/app/api/withings/*`, `src/lib/withings.ts`);
-  tokens are httpOnly cookies; client pulls rows and writes them to Dexie, de-duplicating on `ext`.
+  tokens are httpOnly cookies; client pulls rows and writes them to Dexie, de-duplicating on `ext`
+  (`src/lib/withingsSync.ts`). Shell auto-syncs on open / foreground / reconnect and every 5 min while visible,
+  once a sync has succeeded on the device (`fitlog.withings.lastSync` in localStorage; cleared on 401 or
+  Disconnect). Withings' notify webhooks can't reach IndexedDB, so there's no push; this pull is the substitute.
   Needs `WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI` in `.env.local` (see `.env.example`).
 - CSV import (`parseMeasurementCsv`) accepts a Date column plus Weight / Fat % / Lean mass / Heart rate / etc.
 - Offline: `public/sw.js` (production only) is network-first for pages, cache-first for static assets. Pages that take

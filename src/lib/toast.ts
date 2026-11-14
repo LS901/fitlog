@@ -22,6 +22,9 @@ export function showToast(message: string, undo?: () => void, ms = 5000) {
   timer = setTimeout(dismissToast, ms);
 }
 
+/** Whether a toast is on screen (so background news doesn't replace someone's Undo). */
+export const hasToast = () => current !== null;
+
 export function dismissToast() {
   clearTimeout(timer);
   current = null;

@@ -2,8 +2,9 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, setSetting } from "@/lib/db";
-import { exerciseKey, findExercise, incrementFor } from "@/lib/exercises";
-import { defaultIncrement, suggestionLabel } from "@/lib/progression";
+import { exerciseKey, incrementFor } from "@/lib/exercises";
+import { DEFAULT_PLATES } from "@/lib/plates";
+import { suggestionLabel } from "@/lib/progression";
 import { useSetting } from "@/lib/useSetting";
 import { planExercise, sameExercise, type ExercisePoint } from "@/lib/workouts";
 import type { WorkoutSession } from "@/lib/types";
@@ -25,15 +26,16 @@ export function NextTimeCard({
   best?: ExercisePoint;
 }) {
   const increments = useSetting("exerciseIncrements", NONE);
+  const plates = useSetting("plates", DEFAULT_PLATES);
   const bodyweight = useLiveQuery(
     async () => (await db.measurements.where("type").equals("weight").sortBy("date")).at(-1)?.value ?? null,
     [],
   );
-  if (!increments) return null;
+  if (!increments || !plates) return null;
 
   const key = exerciseKey(name);
-  const step = incrementFor(name, increments);
-  const fallback = defaultIncrement(name, findExercise(name)?.info.equipment);
+  const step = incrementFor(name, increments, plates);
+  const fallback = incrementFor(name, {}, plates);
   const lastSession = [...sessions]
     .filter((s) => s.finishedAt && s.entries.some((e) => sameExercise(e.exercise, name)))
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];

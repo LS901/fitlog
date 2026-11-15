@@ -25,6 +25,8 @@ describe("warm-ups", () => {
     expect(loadable(51)).toBe(50);
     expect(loadable(71.2)).toBe(70);
     expect(loadable(10)).toBe(20);
+    // without small plates the steps are coarser
+    expect(loadable(37, 20, [20, 10, 5])).toBe(30);
   });
 
   it("ramps to the working weight", () => {

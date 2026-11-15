@@ -17,6 +17,7 @@ import {
 import { localDay } from "@/lib/nutrition";
 import { addDays, currentPhaseProgramme, lastEndedPhaseProgramme } from "@/lib/phases";
 import { mondayOf } from "@/lib/schedule";
+import { DEFAULT_PLATES } from "@/lib/plates";
 import { useSetting } from "@/lib/useSetting";
 import { Card } from "@/components/ui";
 
@@ -31,7 +32,8 @@ export default function InsightsPage() {
     [],
   );
   const increments = useSetting("exerciseIncrements", NONE);
-  if (!sessions || !programmes || !weights || !increments) return null;
+  const plates = useSetting("plates", DEFAULT_PLATES);
+  if (!sessions || !programmes || !weights || !increments || !plates) return null;
 
   const today = localDay();
   const monday = mondayOf(today);
@@ -40,7 +42,7 @@ export default function InsightsPage() {
   const prior = muscleSets(sessions, addDays(monday, -28), addDays(monday, -1));
   const weeks = heatmapWeeks(sessions, today, 12);
   const streak = weekStreak(sessions, today);
-  const stalled = stalledLifts(sessions, (n) => incrementFor(n, increments), today);
+  const stalled = stalledLifts(sessions, (n) => incrementFor(n, increments, plates), today);
   const hard = hardShare(sessions);
   const suggestDeload = stalled.length >= 2 || (stalled.length >= 1 && (hard ?? 0) >= 0.5);
   const phase = currentPhaseProgramme(programmes) ?? lastEndedPhaseProgramme(programmes);

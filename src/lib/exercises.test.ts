@@ -30,4 +30,15 @@ describe("equipment helpers", () => {
     expect(incrementFor("Barbell Deadlift", { barbelldeadlift: 2.5 })).toBe(2.5);
     expect(incrementFor("Dumbbell chest press")).toBe(2);
   });
+
+  it("sizes barbell jumps to the plates available", () => {
+    const noSmall = [25, 20, 15, 10, 5];
+    expect(incrementFor("Flat barbell bench press", {}, noSmall)).toBe(10);
+    expect(incrementFor("Flat barbell bench press", {}, [20, 10, 5, 2.5])).toBe(5);
+    expect(incrementFor("Flat barbell bench press", {}, [20, 10, 5, 2.5, 1.25])).toBe(2.5);
+    expect(incrementFor("Barbell Deadlift", {}, [20, 10, 5, 2.5])).toBe(5);
+    // an explicit per-exercise step wins, and plates don't touch dumbbells
+    expect(incrementFor("Flat barbell bench press", { flatbarbellbenchpress: 2.5 }, noSmall)).toBe(2.5);
+    expect(incrementFor("Dumbbell chest press", {}, noSmall)).toBe(2);
+  });
 });

@@ -188,7 +188,7 @@ function Session() {
 
       {finished && justFinished && all && (
         <SummaryCard
-          summary={summarise(session, all, (n) => incrementFor(n, increments))}
+          summary={summarise(session, all, (n) => incrementFor(n, increments, plates))}
           onDone={() => router.push("/workouts")}
         />
       )}
@@ -208,7 +208,7 @@ function Session() {
               ? planExercise(all, entry.exercise, {
                   dayName: session.dayName,
                   target: entry.target,
-                  increment: incrementFor(entry.exercise, increments),
+                  increment: incrementFor(entry.exercise, increments, plates),
                   before: session.startedAt,
                 })
               : undefined

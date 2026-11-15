@@ -1,4 +1,5 @@
 import raw from "@/data/exercises.json";
+import { plateStep } from "./plates";
 import { defaultIncrement } from "./progression";
 
 /**
@@ -100,12 +101,20 @@ export const exerciseProgressHref = (name: string) =>
 
 /**
  * Smallest weight jump for an exercise: the user's override (Settings, keyed by `exerciseKey`) or a
- * default from the library's equipment field.
+ * default from the library's equipment field. Pass the gym's `plates` and a barbell default is
+ * rounded up to a jump those plates can make (no 1.25s → 5 kg jumps, smallest 5 kg → 10 kg).
  */
-export function incrementFor(name: string, overrides: Record<string, number> = {}): number {
+export function incrementFor(
+  name: string,
+  overrides: Record<string, number> = {},
+  plates?: number[],
+): number {
   const own = overrides[exerciseKey(name)];
   if (typeof own === "number" && own >= 0) return own;
-  return defaultIncrement(name, findExercise(name)?.info.equipment);
+  const base = defaultIncrement(name, findExercise(name)?.info.equipment);
+  if (!plates || base <= 0 || !isBarbell(name)) return base;
+  const step = plateStep(plates);
+  return Math.round(Math.ceil(base / step - 1e-9) * step * 100) / 100;
 }
 
 const CONDITIONING = /stretch|mobility|treadmill|elliptical|rowing|cross ?trainer|bike|cardio/i;

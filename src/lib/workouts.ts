@@ -1,7 +1,8 @@
-import { db, getExerciseIncrements } from "./db";
+import { db, getExerciseIncrements, getSetting } from "./db";
 import { exerciseKey, incrementFor } from "./exercises";
 import { e1rm } from "./measures";
 import { dayFocus } from "./phases";
+import { DEFAULT_PLATES } from "./plates";
 import { parseRepTarget, suggestNext, type Suggestion } from "./progression";
 import type { Effort, ProgrammeDay, SessionEntry, SetLog, WorkoutSession } from "./types";
 
@@ -128,17 +129,26 @@ async function finishedSessions() {
   return db.sessions.filter((s) => !!s.finishedAt).toArray();
 }
 
+/** Weight step per exercise from the user's overrides and the gym's plates (Settings). */
+async function stepLookup(): Promise<(name: string) => number> {
+  const [increments, plates] = await Promise.all([
+    getExerciseIncrements(),
+    getSetting("plates", DEFAULT_PLATES),
+  ]);
+  return (name) => incrementFor(name, increments, plates);
+}
+
 /** Builds a session entry for an exercise, prefilled from history. */
 export function buildEntry(
   sessions: WorkoutSession[],
-  increments: Record<string, number>,
+  stepFor: (name: string) => number,
   ex: { name: string; sets?: number; target?: string; rest?: number; group?: number; notes?: string },
   dayName?: string,
 ): SessionEntry {
   const plan = planExercise(sessions, ex.name, {
     dayName,
     target: ex.target,
-    increment: incrementFor(ex.name, increments),
+    increment: stepFor(ex.name),
   });
   return {
     exercise: ex.name,
@@ -152,8 +162,8 @@ export function buildEntry(
 
 /** A new entry for an exercise added mid-workout, prefilled from its history. */
 export async function newEntry(name: string, dayName?: string): Promise<SessionEntry> {
-  const [sessions, increments] = await Promise.all([finishedSessions(), getExerciseIncrements()]);
-  return buildEntry(sessions, increments, { name }, dayName);
+  const [sessions, stepFor] = await Promise.all([finishedSessions(), stepLookup()]);
+  return buildEntry(sessions, stepFor, { name }, dayName);
 }
 
 export const plannedTarget = (sets: number, reps: string) =>
@@ -164,14 +174,14 @@ export async function startSession(
   day?: ProgrammeDay,
   warmup?: ProgrammeDay,
 ): Promise<number> {
-  const [sessions, increments] = await Promise.all([finishedSessions(), getExerciseIncrements()]);
+  const [sessions, stepFor] = await Promise.all([finishedSessions(), stepLookup()]);
   const exercises = [...(warmup?.exercises ?? []), ...(day?.exercises ?? [])];
   // keep superset groups from the two days apart
   const offset = Math.max(0, ...(warmup?.exercises ?? []).map((e) => e.group ?? 0));
   const entries = exercises.map((ex, i) =>
     buildEntry(
       sessions,
-      increments,
+      stepFor,
       {
         name: ex.name,
         sets: ex.sets,
@@ -195,11 +205,11 @@ export async function startSession(
 
 /** Starts a new live workout with the same exercises as `src`, prefilled from history. */
 export async function repeatSession(src: WorkoutSession): Promise<number> {
-  const [sessions, increments] = await Promise.all([finishedSessions(), getExerciseIncrements()]);
+  const [sessions, stepFor] = await Promise.all([finishedSessions(), stepLookup()]);
   const entries = src.entries.map((e) =>
     buildEntry(
       sessions,
-      increments,
+      stepFor,
       {
         name: e.exercise,
         sets: e.sets.filter((x) => x.kind !== "warmup").length,

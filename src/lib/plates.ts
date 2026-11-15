@@ -32,9 +32,15 @@ export function platesFor(target: number, bar = DEFAULT_BAR, plates = DEFAULT_PL
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Smallest jump the plates allow on a bar: one of the smallest plate on each side. */
+export function plateStep(plates = DEFAULT_PLATES) {
+  const sizes = plates.filter((p) => p > 0);
+  return round2(2 * (sizes.length ? Math.min(...sizes) : 1.25));
+}
+
 /** Rounds down to something loadable (2 × the smallest plate), never below the bar. */
 export function loadable(weight: number, bar = DEFAULT_BAR, plates = DEFAULT_PLATES) {
-  const step = 2 * Math.min(...plates.filter((p) => p > 0), 1.25);
+  const step = plateStep(plates);
   return Math.max(bar, round2(bar + Math.floor((weight - bar) / step + 1e-9) * step));
 }
 

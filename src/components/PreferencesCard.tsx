@@ -82,7 +82,7 @@ export function PreferencesCard() {
           </label>
         </div>
         <p className="text-xs text-zinc-500">
-          Used by the plate calculator on barbell exercises (More ⋯ → Plates &amp; warm-up).
+          Used by the plate calculator (More ⋯ → Plates &amp; warm-up) and to size the weight jumps suggested on barbell exercises: without 1.25s, barbell lifts go up in 5 kg.
         </p>
       </div>
     </Card>

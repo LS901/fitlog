@@ -308,20 +308,23 @@ function Session() {
           <button className={`${btnGhostCls} flex-1`} onClick={() => router.back()}>
             Back
           </button>
-          <button
-            className={`${btnGhostCls} flex-1`}
-            onClick={async () => {
-              const live = await db.sessions.filter((x) => !x.finishedAt).first();
-              if (live) {
-                showToast("Finish the workout in progress first");
-                router.push(`/workouts/session?id=${live.id}`);
-                return;
-              }
-              router.push(`/workouts/session?id=${await repeatSession(session)}`);
-            }}
-          >
-            Repeat workout
-          </button>
+          {/* programme days start from their preview, once a week; quick workouts can be repeated */}
+          {!session.dayName && (
+            <button
+              className={`${btnGhostCls} flex-1`}
+              onClick={async () => {
+                const live = await db.sessions.filter((x) => !x.finishedAt).first();
+                if (live) {
+                  showToast("Finish the workout in progress first");
+                  router.push(`/workouts/session?id=${live.id}`);
+                  return;
+                }
+                router.push(`/workouts/session?id=${await repeatSession(session)}`);
+              }}
+            >
+              Repeat workout
+            </button>
+          )}
           <button
             className="px-3 text-sm text-red-400"
             onClick={async () => {

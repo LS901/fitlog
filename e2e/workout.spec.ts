@@ -7,12 +7,19 @@ const history = [
   finished("2026-11-02", "Session 1 · Volume", [{ exercise: "Barbell Deadlift", sets: sets(4, 80, 8) }]),
 ];
 
-test("log a heavy day: prefill, suggestion, rest timer, guard, finish", async ({ page }) => {
+test("log a heavy day: preview, prefill, suggestion, rest timer, guard, finish", async ({ page }) => {
   await start(page, backup(history));
 
+  // Up next opens the day's preview; nothing starts until Start is pressed
   await page.goto("/");
-  await page.getByRole("button", { name: /Start Session 1 · Heavy/ }).click();
+  await page.getByRole("link", { name: /Up next.*Session 1 · Heavy/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Session 1 · Heavy" })).toBeVisible();
+  const planned = card(page, "Barbell Deadlift");
+  await expect(planned.getByText("100×6 · 100×6 · 100×6 · 100×6")).toBeVisible();
+  await expect(planned.getByText("Suggested: ↑ 105 kg × 6")).toBeVisible();
+  await expect(page.getByText("Starts with Warm-up & mobility")).toBeVisible();
+  await page.getByRole("button", { name: "Start workout" }).click();
+  await expect(page.getByRole("button", { name: "Finish workout" })).toBeVisible();
 
   // warm-up prepended
   await expect(card(page, "Cross trainer")).toBeVisible();
@@ -51,7 +58,8 @@ test("log a heavy day: prefill, suggestion, rest timer, guard, finish", async ({
 
   // starting another day while this one is live asks first
   await page.goto("/workouts");
-  await page.getByRole("button", { name: /Session 2 · Heavy/ }).click();
+  await page.getByRole("link", { name: /Session 2 · Heavy/ }).click();
+  await page.getByRole("button", { name: "Start workout" }).click();
   await expect(page.getByText("Session 1 · Heavy is still in progress")).toBeVisible();
   await page.getByRole("button", { name: "Resume Session 1 · Heavy" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Session 1 · Heavy" })).toBeVisible();
@@ -70,4 +78,12 @@ test("log a heavy day: prefill, suggestion, rest timer, guard, finish", async ({
 
   await expect(page).toHaveURL(/\/workouts$/);
   await expect(page.getByText("1 of 3 done")).toBeVisible();
+
+  // a day done this week can be looked at but not started again
+  await page.locator(`a[href^="/workouts/day"]`, { hasText: "Session 1 · Heavy" }).click();
+  await expect(page.getByText("✓ Completed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start workout" })).toHaveCount(0);
+  await page.getByRole("button", { name: "View workout →" }).click();
+  await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Repeat workout" })).toHaveCount(0);
 });

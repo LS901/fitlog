@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { backup, card, finished, sets, start } from "./helpers";
 
-test("exercise tools: plates, warm-up sets, swap, move, remove with undo, repeat", async ({ page }) => {
+test("exercise tools: plates, warm-up sets, swap, move, remove with undo", async ({ page }) => {
   await start(
     page,
     backup(
@@ -18,8 +18,9 @@ test("exercise tools: plates, warm-up sets, swap, move, remove with undo, repeat
   );
 
   await page.goto("/workouts");
-  await page.getByRole("button", { name: /Session 1 · Heavy/ }).first().click();
-  await expect(page.getByRole("heading", { level: 1, name: "Session 1 · Heavy" })).toBeVisible();
+  await page.getByRole("link", { name: /Session 1 · Heavy/ }).first().click();
+  await page.getByRole("button", { name: "Start workout" }).click();
+  await expect(page.getByRole("button", { name: "Finish workout" })).toBeVisible();
   // warm-up toggled off in settings
   await expect(card(page, "Cross trainer")).toHaveCount(0);
 
@@ -66,11 +67,27 @@ test("exercise tools: plates, warm-up sets, swap, move, remove with undo, repeat
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(card(page, "Rowing machine")).toBeVisible();
 
-  // finish (ticking everything) and repeat
+  // finish (ticking everything); programme days aren't repeated, they're started from their preview
   await page.getByRole("button", { name: "Finish workout" }).click();
   await page.getByRole("button", { name: /tick all and finish/ }).click();
   await expect(page.getByText("Workout done")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Repeat workout" })).toHaveCount(0);
+});
+
+test("repeat a quick workout", async ({ page }) => {
+  await start(page, backup([]));
+  await page.goto("/workouts");
+  await page.getByRole("button", { name: "Start empty workout" }).click();
+  await page.getByPlaceholder("Add exercise").fill("Goblet squats");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  const goblet = card(page, "Goblet squats");
+  await goblet.getByLabel("Set 1 weight").fill("20");
+  await goblet.getByLabel("Set 1 reps").fill("12");
+  await goblet.getByLabel("Mark set 1 done").click();
+  await page.getByRole("button", { name: "Finish workout" }).click();
+  await expect(page.getByText("Workout done")).toBeVisible();
   await page.getByRole("button", { name: "Repeat workout" }).click();
   await expect(page.getByRole("button", { name: "Finish workout" })).toBeVisible();
-  await expect(card(page, "Barbell Deadlift").getByText("Last (Heavy, 11 Nov)")).toBeVisible();
+  await expect(card(page, "Goblet squats").getByLabel("Set 1 weight")).toHaveValue("20");
+  await expect(card(page, "Goblet squats").getByLabel("Set 1 reps")).toHaveValue("12");
 });

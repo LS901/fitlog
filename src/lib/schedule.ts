@@ -7,6 +7,10 @@ export const isWarmupDay = (d: ProgrammeDay) => /warm[\s-]?up|mobility/i.test(d.
 
 export const warmupDay = (p: Programme) => p.days.find(isWarmupDay);
 
+/** Link to a programme day's preview page (query params, so offline page loads still work). */
+export const dayHref = (p: Programme, day: ProgrammeDay) =>
+  `/workouts/day?p=${p.id}&d=${encodeURIComponent(day.name)}`;
+
 /** Monday of the week containing `day` (YYYY-MM-DD). */
 export function mondayOf(day: string) {
   const [y, m, d] = day.split("-").map(Number);
@@ -85,4 +89,44 @@ export function activeProgramme(
   if (recent) return recent;
   const undated = usable.filter((p) => !p.phase);
   return undated.length === 1 ? undated[0] : undefined;
+}
+
+/**
+ * This training week's finished session of `dayName` (same week window as `weekPlan`), latest
+ * first, or undefined when the day hasn't been done this week.
+ */
+export function doneSessionFor(
+  programme: Programme,
+  sessions: WorkoutSession[],
+  dayName: string,
+  now = new Date(),
+): WorkoutSession | undefined {
+  const start = trainingWeekStart(programme, now);
+  const end = addDays(start, 7);
+  return sessions
+    .filter((s) => {
+      if (!s.finishedAt || s.dayName !== dayName) return false;
+      const day = localDay(new Date(s.startedAt));
+      return day >= start && day < end;
+    })
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+}
+
+/** Seconds to allow per working set, on top of the planned rest. */
+const SECONDS_PER_SET = 45;
+
+/**
+ * Rough minutes a day takes: each set plus its rest (no rest after the last set, and within a
+ * superset only after the last exercise of each round), timed moves at their planned length.
+ */
+export function estimateMinutes(day: ProgrammeDay): number {
+  let seconds = 0;
+  day.exercises.forEach((e, i) => {
+    const timed = e.reps.match(/^(\d+(?:\.\d+)?)(?:\s*[–-]\s*(\d+(?:\.\d+)?))?\s*min/i);
+    const work = timed ? Number(timed[2] ?? timed[1]) * 60 : SECONDS_PER_SET;
+    const next = day.exercises[i + 1];
+    const restsAfter = e.group !== undefined && next?.group === e.group ? 0 : (e.rest ?? 60);
+    seconds += e.sets * work + Math.max(0, e.sets - 1) * restsAfter + (next ? restsAfter : 0);
+  });
+  return Math.max(5, Math.round(seconds / 60 / 5) * 5);
 }

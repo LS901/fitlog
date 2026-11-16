@@ -13,7 +13,7 @@ import {
   suggestedPhaseStart,
 } from "@/lib/phases";
 import { exerciseProgressHref } from "@/lib/exercises";
-import { warmupDay, weekPlan, type WeekPlan } from "@/lib/schedule";
+import { dayHref, warmupDay, weekPlan, type WeekPlan } from "@/lib/schedule";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets, sessionVolume, type PR } from "@/lib/workouts";
 import type { Programme, ProgrammeDay, WorkoutSession } from "@/lib/types";
@@ -66,7 +66,6 @@ export default function WorkoutsPage() {
           key={p.id}
           programme={p}
           sessions={sessions ?? []}
-          onStart={start}
           onEdit={() => setEditing(p)}
         />
       ))}
@@ -87,8 +86,7 @@ export default function WorkoutsPage() {
                 key={p.id}
                 programme={p}
                 sessions={sessions ?? []}
-                onStart={start}
-                onEdit={() => setEditing(p)}
+                      onEdit={() => setEditing(p)}
               />
             ))}
           </div>
@@ -210,12 +208,10 @@ function phaseSummary(phase: NonNullable<Programme["phase"]>) {
 function ProgrammeCard({
   programme: p,
   sessions,
-  onStart,
   onEdit,
 }: {
   programme: Programme;
   sessions: WorkoutSession[];
-  onStart: (programme: Programme, day: ProgrammeDay) => void;
   onEdit: () => void;
 }) {
   const state = p.phase ? phaseState(p.phase) : undefined;
@@ -229,9 +225,9 @@ function ProgrammeCard({
     const isNext = plan?.next?.name === d.name;
     const isDone = plan?.done.includes(d.name);
     return (
-      <button
+      <Link
         key={d.name}
-        onClick={() => onStart(p, d)}
+        href={dayHref(p, d)}
         className={`flex w-full items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-left active:bg-zinc-800 ${
           isNext ? "ring-1 ring-emerald-500/60" : ""
         }`}
@@ -246,8 +242,8 @@ function ProgrammeCard({
             {d.exercises.length} exercises
           </div>
         </div>
-        <span className={`text-sm ${isDone ? "text-zinc-500" : "text-emerald-400"}`}>Start →</span>
-      </button>
+        <span className={`text-sm ${isDone ? "text-zinc-500" : "text-emerald-400"}`}>View ›</span>
+      </Link>
     );
   };
 

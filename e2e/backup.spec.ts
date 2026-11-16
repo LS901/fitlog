@@ -39,7 +39,7 @@ test("backup export and restore round-trip", async ({ page }) => {
   await page.goto("/settings");
   await restore(exported);
   await page.goto("/workouts");
-  await expect(page.getByRole("link", { name: /Session 1 · Heavy/ })).toBeVisible();
+  await expect(page.locator(`a[href^="/workouts/session"]`, { hasText: "Session 1 · Heavy" })).toBeVisible();
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /, Sam$/ })).toBeVisible();
 

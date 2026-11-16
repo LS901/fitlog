@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { PHASE_6_PROGRAMME } from "./seed";
-import { activeProgramme, isWarmupDay, mondayOf, trainingWeekStart, weekPlan } from "./schedule";
+import {
+  activeProgramme,
+  doneSessionFor,
+  estimateMinutes,
+  isWarmupDay,
+  mondayOf,
+  trainingWeekStart,
+  weekPlan,
+} from "./schedule";
 import type { Programme, WorkoutSession } from "./types";
 
 const at = (day: string, h = 12) => {
@@ -100,5 +108,58 @@ describe("activeProgramme", () => {
     expect(activeProgramme([undated, old], [done("2027-01-20", "x", "Old")], later)?.name).toBe("Home");
     expect(activeProgramme([undated, old], [], later)?.name).toBe("Home");
     expect(activeProgramme([old], [], later)).toBeUndefined();
+  });
+});
+
+describe("doneSessionFor", () => {
+  const now = at("2026-11-11");
+
+  it("finds this week's finished session of a day, not last week's or a live one", () => {
+    const thisWeek = { ...done("2026-11-10", "Session 1 · Heavy"), id: 2 };
+    const sessions = [
+      { ...done("2026-11-04", "Session 1 · Heavy"), id: 1 },
+      thisWeek,
+      { startedAt: at("2026-11-11", 9).toISOString(), dayName: "Session 2 · Heavy", entries: [] },
+    ];
+    expect(doneSessionFor(PHASE_6_PROGRAMME, sessions, "Session 1 · Heavy", now)?.id).toBe(2);
+    expect(doneSessionFor(PHASE_6_PROGRAMME, sessions, "Session 2 · Heavy", now)).toBeUndefined();
+    expect(doneSessionFor(PHASE_6_PROGRAMME, sessions, "Session 3 · Heavy", now)).toBeUndefined();
+  });
+});
+
+describe("estimateMinutes", () => {
+  it("adds sets, rests and timed moves, rounded to 5 minutes", () => {
+    // 3 sets × 45 s + 2 rests × 90 s = 5:15
+    expect(estimateMinutes({ name: "A", exercises: [{ name: "Squat", sets: 3, reps: "8", rest: 90 }] })).toBe(5);
+    // 10 min row + 1 min changeover + (4×45 s + 3×120 s) = 20 min
+    expect(
+      estimateMinutes({
+        name: "B",
+        exercises: [
+          { name: "Rowing", sets: 1, reps: "10min" },
+          { name: "Deadlift", sets: 4, reps: "6", rest: 120 },
+        ],
+      }),
+    ).toBe(20);
+  });
+
+  it("rests once per superset round", () => {
+    const superset = {
+      name: "C",
+      exercises: [
+        { name: "Press", sets: 3, reps: "10", rest: 60, group: 1 },
+        { name: "Row", sets: 3, reps: "10", rest: 60, group: 1 },
+      ],
+    };
+    // 6 sets × 45 s + 2 rests × 60 s = 6:30
+    expect(estimateMinutes(superset)).toBe(5);
+  });
+
+  it("gives the seeded days a plausible length", () => {
+    for (const d of PHASE_6_PROGRAMME.days) {
+      const m = estimateMinutes(d);
+      expect(m).toBeGreaterThanOrEqual(5);
+      expect(m).toBeLessThanOrEqual(120);
+    }
   });
 });

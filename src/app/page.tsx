@@ -8,13 +8,12 @@ import { exerciseProgressHref } from "@/lib/exercises";
 import { localDay } from "@/lib/nutrition";
 import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
 import { weekStreak } from "@/lib/insights";
-import { activeProgramme, trainingWeekStart, weekPlan } from "@/lib/schedule";
+import { activeProgramme, dayHref, trainingWeekStart, weekPlan } from "@/lib/schedule";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets } from "@/lib/workouts";
 import type { MeasureType } from "@/lib/types";
 import { BackupReminder } from "@/components/BackupReminder";
 import { PhaseReminder } from "@/components/PhaseReminder";
-import { useStartWorkout } from "@/components/StartWorkout";
 import { Card, Stat, TrendChart } from "@/components/ui";
 
 const greeting = () => {
@@ -42,7 +41,6 @@ export default function Home() {
   }, []);
 
   const name = useSetting("displayName", "");
-  const { start, dialog } = useStartWorkout();
 
   const phaseProg = programmes && currentPhaseProgramme(programmes);
   const pw = phaseProg ? phaseWeek(phaseProg.phase) : null;
@@ -95,15 +93,15 @@ export default function Home() {
           </div>
         </Link>
       ) : plan?.next ? (
-        <button
-          onClick={() => start(plan.programme, plan.next)}
+        <Link
+          href={dayHref(plan.programme, plan.next)}
           className="block w-full rounded-2xl bg-emerald-500 p-4 text-left text-zinc-950 active:bg-emerald-400"
         >
           <div className="text-xs font-medium opacity-70">
             Up next · {plan.done.length} of {plan.days.length} done this week
           </div>
-          <div className="text-lg font-semibold">Start {plan.next.name} →</div>
-        </button>
+          <div className="text-lg font-semibold">{plan.next.name} →</div>
+        </Link>
       ) : (
         <Link
           href="/workouts"
@@ -117,7 +115,6 @@ export default function Home() {
           </div>
         </Link>
       )}
-      {dialog}
 
       <BackupReminder />
       <PhaseReminder />

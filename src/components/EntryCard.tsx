@@ -28,7 +28,7 @@ const shortDay = (iso: string) =>
 type Panel = "tools" | "swap" | "plates" | null;
 
 /** 90 → "90s", 120 → "2 min", 150 → "2:30" */
-const restLabel = (s: number) =>
+export const restLabel = (s: number) =>
   s < 120 ? `${s}s` : s % 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s / 60} min`;
 
 export interface BarSetup {

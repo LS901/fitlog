@@ -48,6 +48,12 @@ Tailwind), so keep the code idiomatic and conventional.
 - Data safety (`src/lib/backup.ts`): Shell calls `navigator.storage.persist()` on load; exports record `lastBackupAt`
   in `settings`; Home shows `BackupReminder` when there's data and no backup for 14+ days. On touch devices export uses
   the share sheet (save to iCloud/Drive), else a download. Restoring sets `lastBackupAt` to the backup's `exportedAt`.
+- Coach review (`src/lib/review.ts`, `src/app/api/review/route.ts`, `CoachReview.tsx` inside the insights card): on
+  request only, `buildReviewRequest` sends one finished workout (working/warm-up sets, efforts, per-exercise memos,
+  programme notes, session notes, last 3 sessions per exercise, the computed summary) to Claude Opus 5.5 (effort
+  medium, structured `ReviewOutputSchema`, refusal fallback). The result is stored on `WorkoutSession.review`. Same
+  `ANTHROPIC_API_KEY` + `FITLOG_ACCESS_CODE` gate as the planner (`src/lib/apiAuth.ts` server side,
+  `src/lib/accessCode.ts` for the remembered code); hidden when GET reports `configured: false`.
 - Exercise how-to: `src/lib/exercises.ts` + `src/data/exercises.json` + `public/exercises/*.jpg` (photos and instructions from the
   public-domain free-exercise-db, hand-mapped to the seeded programme's names; `approx` marks a similar-but-not-identical
   exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted
@@ -62,13 +68,26 @@ Tailwind), so keep the code idiomatic and conventional.
     so heavy follows heavy. It matches the variant, not the day name (ExpertPT reused "Session 1/2/3" across
     phases and exercises move days), and ignores a match more than `VARIANT_MAX_GAP_DAYS` (28) behind the latest
     session of that exercise. The finish summary's "last time this day" uses the same 28-day cut-off;
-    `startSession`/`newEntry`/`repeatSession` prefill via `buildEntry`/`prefillSets`.
+    `startSession`/`newEntry`/`repeatSession` prefill via `buildEntry`/`prefillSets`: **exactly last time's sets**
+    (weight and reps per set position); the suggestion is not auto-applied, `EntryCard` offers it as "Apply".
+    `carryDown` (used by the set inputs) copies an edited weight/reps to the later undone working sets that held
+    the old value or were blank, so changing set 1 updates the rest while pyramids and lifted sets stay.
   - `schedule.ts`: `weekPlan` (this week's days: matching heavy/volume variant, warm-up days excluded, done by
-    `dayName`), `activeProgramme`. `StartWorkout.tsx`'s `useStartWorkout` is the only way to start a programme day:
-    prepends the warm-up day (`settings.includeWarmup`) and refuses a second live session.
+    `dayName`), `activeProgramme`, `doneSessionFor` (this week's finished session of a day), `estimateMinutes`,
+    `dayHref`. Tapping a day (Train, Home's Up next) opens the preview `/workouts/day?p=<programmeId>&d=<dayName>`:
+    planned sets as they'll prefill, suggestions, last note, muscles, estimated time, and **Start workout**. A day
+    done this week shows Completed + View workout instead of Start; ended phases can't be started; Repeat on the
+    session page is for quick (no `dayName`) workouts only. `StartWorkout.tsx`'s `useStartWorkout` is the only way
+    to start a programme day: prepends the warm-up day (`settings.includeWarmup`) and refuses a second live session.
+  - Set timing: ticking a set in a live workout stores `SetLog.doneAt`. `timing.ts`: `sessionTiming` (active
+    minutes, average rest ignoring gaps over 10 min, kg/min) and `staleFinish` (no tick for 2 h, or nothing ticked
+    after 3 h): the session page offers "Finish at <last set>", Home/Train cards say "Left open?".
   - Rest timer: end timestamp in localStorage (`restTimer.ts`), rendered in the nav by `RestTimer`; `restAfterSet`
     (rest.ts) waits for the last exercise of a superset. Toasts with Undo: `showToast` (toast.ts) / `ToastBar`.
-  - `summary.ts` (finish summary), `plates.ts` (plates per side, warm-up ramp), `insights.ts` (muscle sets per group,
+  - `summary.ts` (post-workout insights: totals vs last time, `personalBests` (e1rm / heaviest / most reps at a
+    weight or heavier / volume, never on a first appearance), per-exercise vs last time (variant-aware), muscle sets
+    today + training week, timing, rule-based next-time recommendations). Rendered by `WorkoutSummary.tsx` right
+    after finishing (`done=1`) and on any finished workout via "View post-workout insights". `plates.ts` (plates per side, warm-up ramp), `insights.ts` (muscle sets per group,
     heatmap/streak, stalled lifts, phase report), `trends.ts` (weight slope, goal ETA, maintenance kcal).
   - Session page is keyed by `id` (Repeat navigates to another id on the same page). Next keeps previous pages
     mounted after navigating, so close any `<dialog>` before calling `router.push`.
@@ -103,7 +122,8 @@ Brand strings live in `landing/src/site.ts`. See `landing/README.md`.
 - Never commit personal data. `/data/` and `.env*` (except `.env.example`) are gitignored.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.
 - Data only leaves the device for Withings sync and, when the user presses Generate, the phase generator (brief +
-  workout/weight summary, never photos). Keep it that way and say so in the UI when adding anything that sends data.
+  workout/weight summary, never photos), and when they press Get coach review (that workout, its notes and recent
+  history of its exercises). Keep it that way and say so in the UI when adding anything that sends data.
 
 ## Roadmap
 1. ~~**Nutrition + MyFitnessPal.**~~ Done: `/nutrition` page (intake vs target, 7-day average, calories chart), manual
@@ -133,6 +153,10 @@ Brand strings live in `landing/src/site.ts`. See `landing/README.md`.
    finish check + summary, plates/warm-up calculator, warm-up sets, swap/reorder/undo, wake lock, edit time, repeat,
    Insights page (muscle volume, heatmap/streak, stalls/deload nudge, phase report), weight trend/ETA, maintenance
    calories, generator gets adherence + stalls, Playwright e2e + fake-indexeddb tests.
+
+8. ~~**Workout flow pass.**~~ Done (Nov 2026): day preview + explicit Start (no restarting a day done this week),
+   prefill = last time exactly + carry-down edits, set timestamps + forgotten-workout finish, richer post-workout
+   insights reopenable from any finished workout, on-demand Claude coach review that reads the notes.
 
 Ideas not built yet: per-set RPE, supersets/circuits editor UI (beyond the text format), rest timer notifications
 when the PWA is backgrounded (needs push), kg/lb units, exercise library beyond the seeded programme.

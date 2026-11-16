@@ -19,6 +19,7 @@ import {
   previousMemo,
 } from "@/lib/workouts";
 import type { PlannedExercise, ProgrammeDay, WorkoutSession } from "@/lib/types";
+import { restLabel } from "@/components/EntryCard";
 import { ExerciseModal, ExerciseThumb } from "@/components/ExerciseInfo";
 import { useStartWorkout } from "@/components/StartWorkout";
 import { Card, btnCls, btnGhostCls } from "@/components/ui";
@@ -237,14 +238,20 @@ function PlannedCard({
         <span className="text-right text-xs text-zinc-500">
           {superset && "Superset · "}
           {target}
-          {ex.rest ? ` · ${ex.rest}s rest` : ""}
+          {ex.rest ? ` · ${restLabel(ex.rest)} rest` : ""}
         </span>
       }
     >
       {ex.notes && <p className="mb-2 text-xs text-zinc-500">{ex.notes}</p>}
       <p className="text-sm tabular-nums">
         <span className="text-zinc-500">Plan: </span>
-        {hasNumbers ? formatSets(entry.sets) : <span className="text-zinc-400">first time, pick a weight</span>}
+        {hasNumbers ? (
+          formatSets(entry.sets)
+        ) : (
+          <span className="text-zinc-400">
+            {/min$/.test(ex.reps) ? `${target}, first time logged` : "first time, pick a weight as you go"}
+          </span>
+        )}
       </p>
       {s && s.action !== "hold" && (
         <p

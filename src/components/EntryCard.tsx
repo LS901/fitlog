@@ -6,7 +6,7 @@ import { alternativesFor, exerciseProgressHref, isBarbell } from "@/lib/exercise
 import { platesFor, warmupRamp } from "@/lib/plates";
 import { parseRepTarget, suggestionLabel } from "@/lib/progression";
 import { showToast } from "@/lib/toast";
-import { formatSets, type ExercisePlan } from "@/lib/workouts";
+import { carryDown, formatSets, type ExercisePlan } from "@/lib/workouts";
 import type { Effort, SessionEntry } from "@/lib/types";
 import { ExerciseThumb } from "./ExerciseInfo";
 import { Card, btnGhostCls, inputCls } from "./ui";
@@ -201,7 +201,7 @@ export function EntryCard({
                   className={`${inputCls} py-2 ${tone}`}
                   value={set.weight || ""}
                   onChange={(e) =>
-                    edit((x) => void (x.sets[si].weight = parseFloat(e.target.value) || 0))
+                    edit((x) => void (x.sets = carryDown(x.sets, si, "weight", parseFloat(e.target.value) || 0)))
                   }
                 />
               )}
@@ -211,14 +211,10 @@ export function EntryCard({
                 aria-label={`Set ${si + 1} ${timed ? "minutes" : "reps"}`}
                 className={`${inputCls} py-2 ${tone}`}
                 value={set.reps || ""}
-                onChange={(e) =>
-                  edit(
-                    (x) =>
-                      void (x.sets[si].reps = timed
-                        ? parseFloat(e.target.value) || 0
-                        : parseInt(e.target.value, 10) || 0),
-                  )
-                }
+                onChange={(e) => {
+                  const v = timed ? parseFloat(e.target.value) || 0 : parseInt(e.target.value, 10) || 0;
+                  edit((x) => void (x.sets = carryDown(x.sets, si, "reps", v)));
+                }}
               />
               <button
                 onClick={() => {

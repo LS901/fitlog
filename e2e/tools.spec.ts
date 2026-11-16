@@ -23,11 +23,11 @@ test("exercise tools: plates, warm-up sets, swap, move, remove with undo, repeat
   // warm-up toggled off in settings
   await expect(card(page, "Cross trainer")).toHaveCount(0);
 
-  // plates for 105 kg and a warm-up ramp added as warm-up sets
+  // plates for last time's 100 kg and a warm-up ramp added as warm-up sets
   const dl = card(page, "Barbell Deadlift");
   await dl.getByRole("button", { name: "More ⋯" }).click();
   await dl.getByRole("button", { name: "Plates & warm-up" }).click();
-  await expect(dl.getByText("25 + 15 + 2.5")).toBeVisible();
+  await expect(dl.getByText("25 + 15", { exact: true })).toBeVisible();
   await dl.getByRole("button", { name: "Add as warm-up sets" }).click();
   await expect(dl.getByRole("button", { name: /Set 1, warm-up/ })).toBeVisible();
   await expect(dl.getByLabel("Set 1 weight")).toHaveValue("20");
@@ -43,7 +43,7 @@ test("exercise tools: plates, warm-up sets, swap, move, remove with undo, repeat
   const goblet = card(page, "Goblet squats");
   await expect(goblet).toBeVisible();
   await expect(goblet.getByText("Last (Heavy, 28 Oct)")).toBeVisible();
-  await expect(goblet.getByLabel("Set 1 weight")).toHaveValue("28"); // 24 + 4 kg kettlebell step
+  await expect(goblet.getByLabel("Set 1 weight")).toHaveValue("24"); // last time's weight
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(card(page, "Leg extension")).toBeVisible();
 

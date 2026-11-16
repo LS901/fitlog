@@ -7,6 +7,7 @@ import {
   planExercise,
   prSetIndexes,
   prefillSets,
+  carryDown,
   variantHistory,
   previousMemo,
   sessionVolume,
@@ -224,7 +225,7 @@ describe("planning the next session", () => {
     expect(plan.suggestion).toMatchObject({ action: "increase", weight: 32.5, reps: 6 });
   });
 
-  it("prefills a heavy day from the last heavy day, with the suggested weight", () => {
+  it("prefills a heavy day with exactly what was lifted last heavy day", () => {
     const plan = planExercise([heavy, volume], "Deadlift", {
       dayName: "Session 1 · Heavy",
       target: "4×6",
@@ -232,8 +233,9 @@ describe("planning the next session", () => {
     });
     expect(plan.last?.topWeight).toBe(100);
     expect(plan.suggestion).toMatchObject({ action: "increase", weight: 105, reps: 6 });
+    // the increase is offered as a suggestion, not filled in
     expect(prefillSets(4, plan, "4×6")).toEqual(
-      Array.from({ length: 4 }, () => ({ weight: 105, reps: 6, done: false })),
+      Array.from({ length: 4 }, () => ({ weight: 100, reps: 6, done: false })),
     );
   });
 
@@ -246,7 +248,7 @@ describe("planning the next session", () => {
     expect(plan.last?.topWeight).toBe(100);
   });
 
-  it("keeps last time's per-set weights when only the reps change", () => {
+  it("keeps last time's per-set weights and reps", () => {
     const pyramid = session("2026-11-03", [
       { exercise: "Bench", sets: [set(80, 9), set(80, 8), set(75, 8)] },
     ]);
@@ -254,9 +256,11 @@ describe("planning the next session", () => {
     expect(plan.suggestion?.action).toBe("reps");
     expect(prefillSets(3, plan, "3×8-10").map((s) => [s.weight, s.reps])).toEqual([
       [80, 9],
-      [80, 9],
-      [75, 9],
+      [80, 8],
+      [75, 8],
     ]);
+    // more sets than last time repeat the last one
+    expect(prefillSets(4, plan, "4×8-10").at(-1)).toMatchObject({ weight: 75, reps: 8 });
   });
 
   it("with no history, starts reps at the bottom of the target and leaves weight blank", () => {
@@ -266,5 +270,44 @@ describe("planning the next session", () => {
       Array.from({ length: 3 }, () => ({ weight: 0, reps: 8, done: false })),
     );
     expect(prefillSets(0, plan)).toHaveLength(1);
+  });
+});
+
+describe("carryDown", () => {
+  const plan = (...w: number[]): SetLog[] => w.map((weight) => ({ weight, reps: 8, done: false }));
+  const weights = (sets: SetLog[]) => sets.map((x) => x.weight);
+
+  it("carries a first-set change to the sets below", () => {
+    expect(weights(carryDown(plan(60, 60, 60), 0, "weight", 62.5))).toEqual([62.5, 62.5, 62.5]);
+  });
+
+  it("chains keystroke by keystroke", () => {
+    let sets = plan(60, 60, 60);
+    for (const v of [6, 62, 62.5]) sets = carryDown(sets, 0, "weight", v);
+    expect(weights(sets)).toEqual([62.5, 62.5, 62.5]);
+  });
+
+  it("fills blank sets and leaves a pyramid's different sets alone", () => {
+    expect(weights(carryDown(plan(80, 80, 75), 0, "weight", 82.5))).toEqual([82.5, 82.5, 75]);
+    expect(weights(carryDown(plan(0, 0, 0), 0, "weight", 40))).toEqual([40, 40, 40]);
+  });
+
+  it("only touches later, undone, working sets", () => {
+    const sets: SetLog[] = [
+      { weight: 20, reps: 10, done: true, kind: "warmup" },
+      { weight: 60, reps: 8, done: false },
+      { weight: 60, reps: 8, done: true },
+      { weight: 60, reps: 8, done: false, kind: "warmup" },
+      { weight: 60, reps: 8, done: false },
+    ];
+    expect(weights(carryDown(sets, 1, "weight", 65))).toEqual([20, 65, 60, 60, 65]);
+    // editing a middle set leaves the ones above
+    expect(weights(carryDown(plan(60, 60, 60), 1, "weight", 55))).toEqual([60, 55, 55]);
+  });
+
+  it("does the same for reps, and a warm-up edit stays put", () => {
+    expect(carryDown(plan(60, 60), 0, "reps", 10).map((x) => x.reps)).toEqual([10, 10]);
+    const warm: SetLog[] = [{ weight: 20, reps: 10, done: false, kind: "warmup" }, ...plan(20)];
+    expect(weights(carryDown(warm, 0, "weight", 30))).toEqual([30, 20]);
   });
 });

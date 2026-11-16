@@ -105,23 +105,33 @@ export function planExercise(
 }
 
 /**
- * Prefilled sets for a new entry. A weight change (increase / deload) applies to every set;
- * otherwise each set keeps last time's weight (pyramids survive) and aims for the suggested reps.
- * With no history the reps start at the bottom of the target and the weight is left blank.
+ * Prefilled sets for a new entry: exactly what was lifted last time, set by set (extra sets repeat
+ * the last one), so pyramids and drop-offs survive. The progression suggestion isn't applied here;
+ * the session page offers it as a one-tap "Apply". With no history the reps start at the bottom of
+ * the target and the weight is left blank.
  */
 export function prefillSets(count: number, plan: ExercisePlan, target?: string): SetLog[] {
   const t = parseRepTarget(target);
   const last = plan.last?.sets ?? [];
-  const s = plan.suggestion;
   const n = Math.max(1, count || last.length || 1);
   return Array.from({ length: n }, (_, i) => {
     const prev = last[Math.min(i, last.length - 1)];
-    const flat = s && (s.action === "increase" || s.action === "deload");
-    return {
-      weight: flat ? s.weight : (prev?.weight ?? 0),
-      reps: s?.reps ?? prev?.reps ?? t?.min ?? 0,
-      done: false,
-    };
+    return { weight: prev?.weight ?? 0, reps: prev?.reps ?? t?.min ?? 0, done: false };
+  });
+}
+
+/**
+ * Sets one field of set `si` and carries the change down to the later sets that were planned the
+ * same (or left blank): not done, not warm-ups, and holding the old value. So changing set 1 from
+ * 60 to 62.5 kg moves 60/60/60 to 62.5 throughout, while a pyramid's lighter back-off set and sets
+ * already lifted stay as they are. Works per keystroke, since each step matches the previous one.
+ */
+export function carryDown(sets: SetLog[], si: number, field: "weight" | "reps", value: number): SetLog[] {
+  const old = sets[si][field];
+  return sets.map((x, i) => {
+    if (i === si) return { ...x, [field]: value };
+    if (i < si || x.done || x.kind === "warmup" || sets[si].kind === "warmup") return x;
+    return x[field] === old || x[field] === 0 ? { ...x, [field]: value } : x;
   });
 }
 

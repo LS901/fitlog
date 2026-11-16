@@ -17,12 +17,18 @@ test("log a heavy day: prefill, suggestion, rest timer, guard, finish", async ({
   // warm-up prepended
   await expect(card(page, "Cross trainer")).toBeVisible();
 
-  // heavy follows the last heavy day (100×6), not last week's volume day, and goes up 5 kg
+  // heavy prefills the last heavy day (100×6), not last week's volume day, and suggests +5 kg
   const dl = card(page, "Barbell Deadlift");
   await expect(dl.getByText("Last (Heavy, 27 Oct):")).toBeVisible();
   await expect(dl.getByText("↑ 105 kg × 6")).toBeVisible();
-  await expect(dl.getByLabel("Set 1 weight")).toHaveValue("105");
+  await expect(dl.getByLabel("Set 1 weight")).toHaveValue("100");
   await expect(dl.getByLabel("Set 1 reps")).toHaveValue("6");
+  await dl.getByRole("button", { name: "Apply" }).click();
+  await expect(dl.getByLabel("Set 4 weight")).toHaveValue("105");
+
+  // changing set 1 carries down to the sets below
+  await dl.getByLabel("Set 1 weight").fill("107.5");
+  await expect(dl.getByLabel("Set 4 weight")).toHaveValue("107.5");
 
   // ticking a set starts the 2 minute rest in the bottom bar
   await dl.getByLabel("Mark set 1 done").click();

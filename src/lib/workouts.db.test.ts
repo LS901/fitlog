@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { db, setSetting } from "./db";
+import { db } from "./db";
 import { PHASE_6_PROGRAMME } from "./seed";
 import type { WorkoutSession } from "./types";
 import { newEntry, repeatSession, startSession } from "./workouts";
@@ -25,7 +25,7 @@ beforeEach(async () => {
 });
 
 describe("startSession", () => {
-  it("prefills a heavy day from the last heavy day, with the suggested increase", async () => {
+  it("prefills a heavy day with what was lifted on the last heavy day", async () => {
     await db.sessions.bulkAdd([
       finished("2026-10-27", "Session 1 · Heavy", [{ exercise: "Barbell Deadlift", sets: sets(4, 100, 6) }]),
       finished("2026-11-02", "Session 1 · Volume", [{ exercise: "Barbell Deadlift", sets: sets(4, 80, 8) }]),
@@ -37,21 +37,12 @@ describe("startSession", () => {
     const dl = s.entries.find((e) => e.exercise === "Barbell Deadlift")!;
     expect(dl.target).toBe("4×6");
     expect(dl.rest).toBe(120);
-    expect(dl.sets).toEqual(Array.from({ length: 4 }, () => ({ weight: 105, reps: 6, done: false })));
+    expect(dl.sets).toEqual(Array.from({ length: 4 }, () => ({ weight: 100, reps: 6, done: false })));
     // no history: reps start at the bottom of the target, weight blank
     const ext = s.entries.find((e) => e.exercise === "Leg extension")!;
     expect(ext.sets[0]).toEqual({ weight: 0, reps: 8, done: false });
     // timed move
     expect(s.entries.find((e) => e.exercise === "Rowing machine")!.target).toBe("4min");
-  });
-
-  it("honours a per-exercise weight step from settings", async () => {
-    await db.sessions.add(
-      finished("2026-10-27", "Session 1 · Heavy", [{ exercise: "Barbell Deadlift", sets: sets(4, 100, 6) }]),
-    );
-    await setSetting("exerciseIncrements", { barbelldeadlift: 2.5 });
-    const s = (await db.sessions.get(await startSession("Phase 6", day("Session 1 · Heavy"))))!;
-    expect(s.entries.find((e) => e.exercise === "Barbell Deadlift")!.sets[0].weight).toBe(102.5);
   });
 
   it("prepends the warm-up without merging superset groups", async () => {
@@ -83,7 +74,7 @@ describe("newEntry and repeatSession", () => {
     const e = await newEntry("goblet squats", "Session 1 · Heavy");
     expect(e.exercise).toBe("goblet squats");
     expect(e.sets).toHaveLength(3);
-    expect(e.sets[0]).toMatchObject({ weight: 28, reps: 10 }); // no target: last reps hit → +4 kg
+    expect(e.sets[0]).toMatchObject({ weight: 24, reps: 10 });
   });
 
   it("repeats a workout's exercises without its warm-up sets", async () => {
@@ -99,6 +90,6 @@ describe("newEntry and repeatSession", () => {
     const s = (await db.sessions.get(id))!;
     expect(s.dayName).toBe("Session 3 · Heavy");
     expect(s.entries[0]).toMatchObject({ target: "4×6", rest: 90 });
-    expect(s.entries[0].sets).toEqual(Array.from({ length: 4 }, () => ({ weight: 82.5, reps: 6, done: false })));
+    expect(s.entries[0].sets).toEqual(Array.from({ length: 4 }, () => ({ weight: 80, reps: 6, done: false })));
   });
 });

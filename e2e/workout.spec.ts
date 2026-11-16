@@ -72,7 +72,10 @@ test("log a heavy day: preview, prefill, suggestion, rest timer, guard, finish",
   const summary = page.locator("section", { hasText: "Workout done" });
   await expect(summary).toBeVisible();
   await expect(summary.getByText("Barbell Deadlift").first()).toBeVisible(); // PR + ready to go up
-  await expect(summary.getByText("Ready to go up next time")).toBeVisible();
+  await expect(summary.getByText("Personal bests")).toBeVisible();
+  await expect(summary.getByText(/Heaviest 107.5 kg \(\+7.5\)/)).toBeVisible();
+  await expect(summary.getByText("Against last time")).toBeVisible();
+  await expect(summary.getByText(/Go up next time/)).toBeVisible();
   await expect(summary.getByText("vs last").first()).toBeVisible();
   await summary.getByRole("button", { name: "Done" }).click();
 
@@ -86,6 +89,13 @@ test("log a heavy day: preview, prefill, suggestion, rest timer, guard, finish",
   await page.getByRole("button", { name: "View workout →" }).click();
   await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Repeat workout" })).toHaveCount(0);
+
+  // the insights are there to come back to
+  await page.getByRole("button", { name: "View post-workout insights" }).click();
+  const insights = page.getByRole("region", { name: "Post-workout insights" });
+  await expect(insights.getByText("Personal bests")).toBeVisible();
+  await insights.getByRole("button", { name: "Close" }).click();
+  await expect(insights).toHaveCount(0);
 });
 
 test("a workout left open offers to finish at the last set", async ({ page }) => {

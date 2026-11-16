@@ -9,7 +9,8 @@ import { toLocalInputValue } from "@/lib/measures";
 import { DEFAULT_BAR, DEFAULT_PLATES } from "@/lib/plates";
 import { restAfterSet } from "@/lib/rest";
 import { startRest, stopRest } from "@/lib/restTimer";
-import { summarise, untickedSets, type WorkoutSummary } from "@/lib/summary";
+import { summarise, untickedSets } from "@/lib/summary";
+import { trainingWeekStart } from "@/lib/schedule";
 import { lastActivity, staleFinish } from "@/lib/timing";
 import { showToast } from "@/lib/toast";
 import { useSetting } from "@/lib/useSetting";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/workouts";
 import type { SessionEntry, WorkoutSession } from "@/lib/types";
 import { EntryCard } from "@/components/EntryCard";
+import { WorkoutSummaryCard } from "@/components/WorkoutSummary";
 import { ExerciseModal } from "@/components/ExerciseInfo";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
 
@@ -50,6 +52,7 @@ function Session() {
   const session = useLiveQuery(() => db.sessions.get(id), [id]);
   // every session, for PR badges, last time / suggestions and carried-forward notes
   const all = useLiveQuery(() => db.sessions.toArray(), []);
+  const programmes = useLiveQuery(() => db.programmes.toArray(), []);
   const increments = useSetting("exerciseIncrements", NO_INCREMENTS) ?? NO_INCREMENTS;
   const wakeLock = useSetting("wakeLock", true);
   const bar = useSetting("barKg", DEFAULT_BAR) ?? DEFAULT_BAR;
@@ -62,6 +65,10 @@ function Session() {
   const [finishAt, setFinishAt] = useState<Date | undefined>();
   const [keepGoing, setKeepGoing] = useState(false);
   const [now] = useState(() => Date.now());
+  // post-workout insights: open straight after finishing, or on demand for any finished workout
+  // (finishing adds done=1 without remounting, hence derived rather than initial state)
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const showInsights = insightsOpen || justFinished;
   // keep the screen on during a live workout
   useWakeLock(!!session && !session.finishedAt && wakeLock === true);
 
@@ -217,10 +224,20 @@ function Session() {
         </section>
       )}
 
-      {finished && justFinished && all && (
-        <SummaryCard
-          summary={summarise(session, all, (n) => incrementFor(n, increments, plates))}
-          onDone={() => router.push("/workouts")}
+      {finished && showInsights && all && (
+        <WorkoutSummaryCard
+          summary={summarise(
+            session,
+            all,
+            (n) => incrementFor(n, increments, plates),
+            trainingWeekStart(
+              programmes?.find((p) => p.name === session.programmeName),
+              new Date(session.startedAt),
+            ),
+          )}
+          title={justFinished ? "Workout done" : "Post-workout insights"}
+          doneLabel={justFinished ? "Done" : "Close"}
+          onDone={() => (justFinished ? router.push("/workouts") : setInsightsOpen(false))}
         />
       )}
 
@@ -338,6 +355,18 @@ function Session() {
         </div>
       )}
 
+      {finished && !showInsights && (
+        <button
+          className={`${btnCls} w-full`}
+          onClick={() => {
+            setInsightsOpen(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        >
+          View post-workout insights
+        </button>
+      )}
+
       {finished && (
         <div className="flex gap-2">
           <button className={`${btnGhostCls} flex-1`} onClick={() => router.back()}>
@@ -388,52 +417,4 @@ function Elapsed({ since }: { since: string }) {
   }, []);
   const min = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));
   return <span> · {min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`}</span>;
-}
-
-const signed = (n: number) =>
-  `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(Math.round(n)).toLocaleString()}`;
-
-/** Shown once after finishing: duration, sets and volume vs last time, PRs, lifts ready to go up. */
-function SummaryCard({ summary: s, onDone }: { summary: WorkoutSummary; onDone: () => void }) {
-  const p = s.previous;
-  return (
-    <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-      <h2 className="font-semibold text-emerald-300">Workout done</h2>
-      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <dt className="text-xs text-zinc-400">Time</dt>
-          <dd className="text-lg font-semibold tabular-nums">{s.minutes ?? "—"} min</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-400">Sets</dt>
-          <dd className="text-lg font-semibold tabular-nums">{s.sets}</dd>
-          {p && <dd className="text-xs text-zinc-400">{signed(s.sets - p.sets)} vs last</dd>}
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-400">Volume</dt>
-          <dd className="text-lg font-semibold tabular-nums">
-            {Math.round(s.volume).toLocaleString()} kg
-          </dd>
-          {p && <dd className="text-xs text-zinc-400">{signed(s.volume - p.volume)} kg vs last</dd>}
-        </div>
-      </dl>
-      {s.prs.length > 0 && (
-        <p className="mt-3 text-sm">
-          <span className="mr-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-300">
-            PR
-          </span>
-          {s.prs.join(", ")}
-        </p>
-      )}
-      {s.readyToIncrease.length > 0 && (
-        <p className="mt-2 text-sm text-zinc-300">
-          <span className="text-emerald-400">↑ Ready to go up next time:</span>{" "}
-          {s.readyToIncrease.join(", ")}
-        </p>
-      )}
-      <button className={`${btnCls} mt-4 w-full`} onClick={onDone}>
-        Done
-      </button>
-    </section>
-  );
 }

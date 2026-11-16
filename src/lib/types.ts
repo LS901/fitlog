@@ -120,6 +120,18 @@ export interface WorkoutSession {
   entries: SessionEntry[];
   /** stable id from an external source (e.g. "trainerize:123"), used to skip re-imports */
   ext?: string;
+  /** Claude's post-workout review, when the user asked for one (see src/lib/review.ts) */
+  review?: WorkoutReview;
+}
+
+/** A stored coach review: headline, wins, things to watch and per-exercise advice. */
+export interface WorkoutReview {
+  /** when it was written (ISO) */
+  at: string;
+  headline: string;
+  wins: string[];
+  watch: string[];
+  nextTime: { exercise: string; advice: string }[];
 }
 
 /** User-editable goals and daily targets. Every field is optional until the user sets it. */

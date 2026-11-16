@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
+import { readAccessCode, saveAccessCode } from "@/lib/accessCode";
 import { db, getGoals } from "@/lib/db";
 import { parseProgrammeText } from "@/lib/measures";
 import { addDays, phaseError, suggestedPhaseStart } from "@/lib/phases";
@@ -45,14 +46,6 @@ const DEFAULT_BRIEF: PhaseBrief = {
   alternate: true,
 };
 
-const CODE_KEY = "fitlog.planCode";
-const readCode = () => {
-  try {
-    return localStorage.getItem(CODE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-};
 
 const dayLabel = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -90,7 +83,7 @@ function Planner({
     lastBrief && !GOALS.includes(lastBrief.goal) ? lastBrief.goal : "",
   );
   const [start, setStart] = useState(() => suggestedPhaseStart(programmes));
-  const [code, setCode] = useState(readCode);
+  const [code, setCode] = useState(readAccessCode);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
@@ -125,11 +118,7 @@ function Planner({
     const goal = customGoal.trim() || brief.goal;
     if (!goal) return setError("Pick or type a goal.");
     if (!code.trim()) return setError("Enter your access code.");
-    try {
-      localStorage.setItem(CODE_KEY, code.trim());
-    } catch {
-      /* not fatal */
-    }
+    saveAccessCode(code);
 
     const [sessions, weights, goals] = await Promise.all([
       db.sessions.toArray(),

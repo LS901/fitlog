@@ -25,6 +25,7 @@ import {
 } from "@/lib/workouts";
 import type { SessionEntry, WorkoutSession } from "@/lib/types";
 import { EntryCard } from "@/components/EntryCard";
+import { CoachReview } from "@/components/CoachReview";
 import { WorkoutSummaryCard } from "@/components/WorkoutSummary";
 import { ExerciseModal } from "@/components/ExerciseInfo";
 import { Card, btnCls, btnGhostCls, inputCls } from "@/components/ui";
@@ -159,6 +160,16 @@ function Session() {
     router.replace(`/workouts/session?id=${id}&done=1`);
   };
   const unticked = untickedSets(session);
+  const programme = programmes?.find((p) => p.name === session.programmeName);
+  const summary =
+    finished && showInsights && all
+      ? summarise(
+          session,
+          all,
+          (n) => incrementFor(n, increments, plates),
+          trainingWeekStart(programme, new Date(session.startedAt)),
+        )
+      : undefined;
   const stale = !finished && !keepGoing ? staleFinish(session, now) : undefined;
   const knownNames = all ? knownExerciseNames(all) : [];
 
@@ -224,21 +235,15 @@ function Session() {
         </section>
       )}
 
-      {finished && showInsights && all && (
+      {finished && showInsights && all && summary && (
         <WorkoutSummaryCard
-          summary={summarise(
-            session,
-            all,
-            (n) => incrementFor(n, increments, plates),
-            trainingWeekStart(
-              programmes?.find((p) => p.name === session.programmeName),
-              new Date(session.startedAt),
-            ),
-          )}
+          summary={summary}
           title={justFinished ? "Workout done" : "Post-workout insights"}
           doneLabel={justFinished ? "Done" : "Close"}
           onDone={() => (justFinished ? router.push("/workouts") : setInsightsOpen(false))}
-        />
+        >
+          <CoachReview session={session} all={all} summary={summary} programme={programme} />
+        </WorkoutSummaryCard>
       )}
 
       {session.entries.map((entry, ei) => (

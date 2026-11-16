@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
@@ -13,6 +12,7 @@ import {
   type PlanOutput,
   type PlanResponse,
 } from "@/lib/plan";
+import { aiConfigured as configured, codeMatches, fail } from "@/lib/apiAuth";
 import { checkPlaybook, hasPlaybook } from "@/lib/playbook";
 import type { ProgrammeDay } from "@/lib/types";
 
@@ -20,21 +20,6 @@ import type { ProgrammeDay } from "@/lib/types";
 export const maxDuration = 300;
 
 const MODEL = "claude-opus-5-5";
-
-/**
- * Generation spends the owner's API credit and the app has no accounts, so it only runs when an
- * access code is configured and the request carries it.
- */
-const configured = () => !!process.env.ANTHROPIC_API_KEY && !!process.env.FITLOG_ACCESS_CODE;
-
-function codeMatches(given: string | null) {
-  const expected = process.env.FITLOG_ACCESS_CODE;
-  if (!expected || !given) return false;
-  const digest = (s: string) => createHash("sha256").update(s).digest();
-  return timingSafeEqual(digest(given), digest(expected));
-}
-
-const fail = (status: number, error: string) => NextResponse.json({ error }, { status });
 
 export async function GET() {
   return NextResponse.json({ configured: configured() });

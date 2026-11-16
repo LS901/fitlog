@@ -90,6 +90,8 @@ export interface SetLog {
   done: boolean;
   /** warm-up sets are logged but left out of PRs, volume and progression */
   kind?: "warmup";
+  /** ISO time the set was ticked in a live workout (absent for imports and "tick all") */
+  doneAt?: string;
 }
 
 /** How an exercise felt, tapped after the sets; sharpens progression suggestions. */

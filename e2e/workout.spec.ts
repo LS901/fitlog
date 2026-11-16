@@ -87,3 +87,30 @@ test("log a heavy day: preview, prefill, suggestion, rest timer, guard, finish",
   await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Repeat workout" })).toHaveCount(0);
 });
+
+test("a workout left open offers to finish at the last set", async ({ page }) => {
+  const at = (h: number, m = 0) => new Date(2026, 10, 11, h, m).toISOString();
+  await start(
+    page,
+    backup([
+      {
+        startedAt: at(6),
+        entries: [
+          {
+            exercise: "Goblet squats",
+            sets: [
+              { weight: 24, reps: 10, done: true, doneAt: at(6, 5) },
+              { weight: 24, reps: 10, done: true, doneAt: at(6, 40) },
+            ],
+          },
+        ],
+      },
+    ]),
+  );
+  await page.goto("/workouts");
+  await page.getByRole("link", { name: /Left open\? Tap to finish it/ }).click();
+  await expect(page.getByText("Forgot to finish?")).toBeVisible();
+  await page.getByRole("button", { name: "Finish at 06:40" }).click();
+  await expect(page.getByText("Workout done")).toBeVisible();
+  await expect(page.locator("section", { hasText: "Workout done" }).getByText("40 min")).toBeVisible();
+});

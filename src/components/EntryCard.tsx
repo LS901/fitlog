@@ -218,7 +218,12 @@ export function EntryCard({
               />
               <button
                 onClick={() => {
-                  edit((x) => void (x.sets[si].done = !set.done));
+                  edit((x) => {
+                    x.sets[si].done = !set.done;
+                    // when it was lifted, for real rest times and the finish time; only while live
+                    if (set.done || !live) delete x.sets[si].doneAt;
+                    else x.sets[si].doneAt = new Date().toISOString();
+                  });
                   try {
                     navigator.vibrate?.(15);
                   } catch {

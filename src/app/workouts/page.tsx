@@ -14,6 +14,7 @@ import {
 } from "@/lib/phases";
 import { exerciseProgressHref } from "@/lib/exercises";
 import { dayHref, warmupDay, weekPlan, type WeekPlan } from "@/lib/schedule";
+import { staleFinish } from "@/lib/timing";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets, sessionVolume, type PR } from "@/lib/workouts";
 import type { Programme, ProgrammeDay, WorkoutSession } from "@/lib/types";
@@ -54,7 +55,9 @@ export default function WorkoutsPage() {
           href={`/workouts/session?id=${active.id}`}
           className="block rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4"
         >
-          <div className="text-xs text-emerald-400">In progress</div>
+          <div className="text-xs text-emerald-400">
+            {staleFinish(active) ? "Left open? Tap to finish it" : "In progress"}
+          </div>
           <div className="font-medium">
             {active.dayName ?? "Quick workout"} · {doneSets(active)} sets done
           </div>

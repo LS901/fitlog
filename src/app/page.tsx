@@ -9,6 +9,7 @@ import { localDay } from "@/lib/nutrition";
 import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
 import { weekStreak } from "@/lib/insights";
 import { activeProgramme, dayHref, trainingWeekStart, weekPlan } from "@/lib/schedule";
+import { staleFinish } from "@/lib/timing";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets } from "@/lib/workouts";
 import type { MeasureType } from "@/lib/types";
@@ -87,7 +88,9 @@ export default function Home() {
           href={`/workouts/session?id=${inProgress.id}`}
           className="block rounded-2xl bg-emerald-500 p-4 text-zinc-950 active:bg-emerald-400"
         >
-          <div className="text-xs font-medium opacity-70">Workout in progress</div>
+          <div className="text-xs font-medium opacity-70">
+            {staleFinish(inProgress) ? "Left open? Tap to finish it" : "Workout in progress"}
+          </div>
           <div className="text-lg font-semibold">
             Resume {inProgress.dayName ?? "workout"} →
           </div>

@@ -10,6 +10,7 @@ import { DEFAULT_BAR, DEFAULT_PLATES } from "@/lib/plates";
 import { restAfterSet } from "@/lib/rest";
 import { startRest, stopRest } from "@/lib/restTimer";
 import { summarise, untickedSets, type WorkoutSummary } from "@/lib/summary";
+import { lastActivity, staleFinish } from "@/lib/timing";
 import { showToast } from "@/lib/toast";
 import { useSetting } from "@/lib/useSetting";
 import { useWakeLock } from "@/lib/useWakeLock";
@@ -57,6 +58,10 @@ function Session() {
   const [infoFor, setInfoFor] = useState<string | null>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
+  // a workout left open: offer to finish it when the last set was ticked
+  const [finishAt, setFinishAt] = useState<Date | undefined>();
+  const [keepGoing, setKeepGoing] = useState(false);
+  const [now] = useState(() => Date.now());
   // keep the screen on during a live workout
   useWakeLock(!!session && !session.finishedAt && wakeLock === true);
 
@@ -142,11 +147,12 @@ function Session() {
       entries = entries
         .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
         .filter((e) => e.sets.length);
-    await save({ entries, finishedAt: new Date().toISOString() });
+    await save({ entries, finishedAt: (finishAt ?? new Date()).toISOString() });
     stopRest();
     router.replace(`/workouts/session?id=${id}&done=1`);
   };
   const unticked = untickedSets(session);
+  const stale = !finished && !keepGoing ? staleFinish(session, now) : undefined;
   const knownNames = all ? knownExerciseNames(all) : [];
 
   const inSuperset = (ei: number) => {
@@ -185,6 +191,31 @@ function Session() {
           />
         )}
       </div>
+
+      {stale && !confirmFinish && (
+        <section className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm">
+          <p className="font-medium text-amber-200">Forgot to finish?</p>
+          <p className="mt-1 text-zinc-300">
+            {lastActivity(session) ? "The last set was ticked" : "It was started"} at {clock(stale)} on{" "}
+            {stale.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              className={`${btnCls} flex-1`}
+              onClick={() => {
+                setFinishAt(stale);
+                if (unticked) setConfirmFinish(true);
+                else void finish("none");
+              }}
+            >
+              Finish at {clock(stale)}
+            </button>
+            <button className={btnGhostCls} onClick={() => setKeepGoing(true)}>
+              Keep going
+            </button>
+          </div>
+        </section>
+      )}
 
       {finished && justFinished && all && (
         <SummaryCard
@@ -284,7 +315,11 @@ function Session() {
         <div className="flex gap-2">
           <button
             className={`${btnCls} flex-1`}
-            onClick={() => (unticked ? setConfirmFinish(true) : finish("none"))}
+            onClick={() => {
+              setFinishAt(undefined);
+              if (unticked) setConfirmFinish(true);
+              else void finish("none");
+            }}
           >
             Finish workout
           </button>
@@ -341,6 +376,8 @@ function Session() {
     </div>
   );
 }
+
+const clock = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 /** " · 42 min" since the workout started, ticking each half minute. */
 function Elapsed({ since }: { since: string }) {

@@ -26,14 +26,23 @@ export async function GET(req: Request) {
   const expected = jar.get("wt_state")?.value;
   jar.delete("wt_state");
 
+  // say which step failed: they need different fixes and can't be seen from here otherwise
+  const fail = (reason: string) => {
+    console.error(`Withings connect failed: ${reason}`);
+    const to = new URL("/settings?withings=error", url);
+    to.searchParams.set("reason", reason);
+    return NextResponse.redirect(to);
+  };
+  const declined = url.searchParams.get("error");
+  if (declined) return fail(`Withings returned "${declined}"`);
   const code = url.searchParams.get("code");
-  if (!code || !expected || url.searchParams.get("state") !== expected) {
-    return NextResponse.redirect(new URL("/settings?withings=error", url));
-  }
+  if (!code) return fail("no sign-in code came back from Withings");
+  if (!expected) return fail("this browser lost the sign-in check cookie on the way back from Withings");
+  if (url.searchParams.get("state") !== expected) return fail("the sign-in check didn't match (two sign-ins at once?)");
   try {
     await storeTokens(await exchangeCode(code));
     return NextResponse.redirect(new URL("/settings?withings=connected", url));
-  } catch {
-    return NextResponse.redirect(new URL("/settings?withings=error", url));
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "the token exchange failed");
   }
 }

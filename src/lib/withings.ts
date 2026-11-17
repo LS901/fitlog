@@ -58,7 +58,11 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
     }),
   });
   const json = await res.json();
-  if (json.status !== 0) throw new WithingsError(`Withings token error (${json.status})`, json.status);
+  if (json.status !== 0) {
+    // Withings usually says why, e.g. "Invalid Params: invalid code"
+    const why = typeof json.error === "string" && json.error ? `: ${json.error}` : "";
+    throw new WithingsError(`Withings token error (${json.status}${why})`, json.status);
+  }
   return json.body as Tokens;
 }
 

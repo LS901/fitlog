@@ -33,7 +33,9 @@ export default function SettingsPage() {
 }
 
 function Settings() {
-  const flash = useSearchParams().get("withings");
+  const params = useSearchParams();
+  const flash = params.get("withings");
+  const flashReason = params.get("reason");
   const [status, setStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
   const [msg, setMsg] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -123,7 +125,7 @@ function Settings() {
               ? "Withings connected. Syncing…"
               : flash === "unconfigured"
                 ? "Withings keys aren't set up yet (see below)."
-                : "Withings connection failed. Try again.")}
+                : `Withings connection failed${flashReason ? `: ${flashReason}` : ""}. Try again.`)}
         </p>
       )}
 

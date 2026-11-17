@@ -11,6 +11,8 @@ import type { Measurement } from "./types";
 
 /** Unix seconds of the last successful sync; its presence also means "connected, sync automatically". */
 const LAST_SYNC = "fitlog.withings.lastSync";
+/** Message of the last failed sync (manual or automatic), cleared by a successful one. */
+const LAST_ERROR = "fitlog.withings.lastError";
 /** Don't auto-sync more often than this. */
 const AUTO_MIN_GAP_MS = 30_000;
 
@@ -43,7 +45,17 @@ const write = (key: string, value: string | null) => {
 export const autoSyncEnabled = () => read(LAST_SYNC) !== null;
 
 /** Stop auto-syncing, e.g. after disconnecting. */
-export const forgetWithingsSync = () => write(LAST_SYNC, null);
+export const forgetWithingsSync = () => {
+  write(LAST_SYNC, null);
+  write(LAST_ERROR, null);
+};
+
+/** When the last successful sync finished (ms), and why the latest attempt failed, if it did. */
+export function withingsSyncState(): { lastSync: number | null; lastError: string | null } {
+  const at = Number(read(LAST_SYNC));
+  // LAST_SYNC is stored a minute early (see below)
+  return { lastSync: at ? (at + 60) * 1000 : null, lastError: read(LAST_ERROR) };
+}
 
 /**
  * Pulls readings since the last sync (`full`: all history). Concurrent calls share one request.
@@ -56,12 +68,16 @@ export function syncWithings(full = false): Promise<SyncResult> {
       const res = await fetch(`/api/withings/sync?since=${since}`);
       const json = await res.json().catch(() => ({}));
       if (res.status === 401) forgetWithingsSync();
-      if (!res.ok) throw new Error(json.error ?? "Sync failed");
+      if (!res.ok) throw new Error(json.error || `Sync failed (HTTP ${res.status})`);
       const rows = json.rows as Omit<Measurement, "id" | "source">[];
       const added = await addMeasurements(rows.map((r) => ({ ...r, source: "withings" as const })));
       // a minute of overlap: readings can reach Withings a little after they were taken
       write(LAST_SYNC, String(Math.floor(Date.now() / 1000) - 60));
+      write(LAST_ERROR, null);
       return { rows: rows.length, added };
+    } catch (e) {
+      write(LAST_ERROR, e instanceof Error && e.message ? e.message : "Sync failed");
+      throw e;
     } finally {
       inFlight = null;
     }

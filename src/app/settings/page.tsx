@@ -10,8 +10,8 @@ import {
   saveBackup,
   setLastBackup,
 } from "@/lib/backup";
-import { addMeasurements, importAll } from "@/lib/db";
-import { forgetWithingsSync, syncWithings } from "@/lib/withingsSync";
+import { addMeasurements, db, importAll } from "@/lib/db";
+import { forgetWithingsSync, syncWithings, withingsSyncState } from "@/lib/withingsSync";
 import { parseMeasurementCsv } from "@/lib/measures";
 import { GoalsCard } from "@/components/GoalsCard";
 import { PlaybookCard } from "@/components/PlaybookCard";
@@ -32,6 +32,13 @@ function Settings() {
   const [status, setStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
   const [msg, setMsg] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  // shown inside the Withings card: the page-level message is far above it, off screen on a phone
+  const [syncMsg, setSyncMsg] = useState("");
+  const [syncState, setSyncState] = useState(withingsSyncState);
+  const latestWithings = useLiveQuery(async () => {
+    const rows = await db.measurements.where("ext").startsWith("withings:").toArray();
+    return rows.reduce<string | null>((max, r) => (!max || r.date > max ? r.date : max), null);
+  }, []);
   const csvRef = useRef<HTMLInputElement>(null);
   const jsonRef = useRef<HTMLInputElement>(null);
 
@@ -47,14 +54,20 @@ function Settings() {
 
   const sync = async (full = false) => {
     setBusy(true);
-    setMsg("");
+    setSyncMsg("");
     try {
       const { rows, added } = await syncWithings(full);
-      setMsg(`Synced ${rows} readings, ${added} new.`);
+      setSyncMsg(
+        rows
+          ? `Got ${rows} reading${rows === 1 ? "" : "s"} from Withings, ${added} new.`
+          : "Withings had nothing new since the last sync.",
+      );
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Sync failed");
-      if (e instanceof Error && e.message === "not_connected") loadStatus();
+      const m = e instanceof Error ? e.message : "Sync failed";
+      setSyncMsg(m === "not_connected" ? "Withings isn't connected any more. Connect it again." : m);
+      if (m === "not_connected") loadStatus();
     } finally {
+      setSyncState(withingsSyncState());
       setBusy(false);
     }
   };
@@ -139,11 +152,19 @@ function Settings() {
                 Full history
               </button>
             </div>
+            {syncMsg && (
+              <p role="status" className="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-200">
+                {syncMsg}
+              </p>
+            )}
+            <WithingsSyncInfo state={syncState} latest={latestWithings} hideError={!!syncMsg} />
             <button
               className="text-xs text-zinc-500"
               onClick={async () => {
                 await fetch("/api/withings/disconnect", { method: "POST" });
                 forgetWithingsSync();
+                setSyncState(withingsSyncState());
+                setSyncMsg("");
                 loadStatus();
               }}
             >
@@ -260,5 +281,30 @@ function BackupInfo() {
         </p>
       )}
     </dl>
+  );
+}
+
+const when = (d: Date) =>
+  d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
+function WithingsSyncInfo({
+  state,
+  latest,
+  hideError,
+}: {
+  state: ReturnType<typeof withingsSyncState>;
+  latest: string | null | undefined;
+  hideError: boolean;
+}) {
+  return (
+    <div className="space-y-1 text-xs text-zinc-400">
+      <p>
+        Last synced: {state.lastSync ? when(new Date(state.lastSync)) : "never on this device"}
+        {latest && <> · newest reading: {when(new Date(latest))}</>}
+      </p>
+      {state.lastError && !hideError && (
+        <p className="text-amber-400">Last sync failed: {state.lastError}</p>
+      )}
+    </div>
   );
 }

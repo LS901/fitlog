@@ -28,7 +28,7 @@ interface Tokens {
 }
 
 /** A non-zero `status` in a Withings response body (Withings answers HTTP 200 either way). */
-class WithingsError extends Error {
+export class WithingsError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -66,12 +66,29 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
   return json.body as Tokens;
 }
 
-export const exchangeCode = (code: string) =>
-  tokenRequest({
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: config()!.redirect,
-  });
+/**
+ * Some browsers (seen on iPhone) load the OAuth callback twice with the same code; Withings answers
+ * the second exchange with 601 ("same arguments in less than 10 seconds"). Requests that land on the
+ * same server instance share one exchange, so both responses carry the tokens.
+ */
+const exchanges = new Map<string, Promise<Tokens>>();
+
+export function exchangeCode(code: string): Promise<Tokens> {
+  let pending = exchanges.get(code);
+  if (!pending) {
+    pending = tokenRequest({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: config()!.redirect,
+    });
+    exchanges.set(code, pending);
+    setTimeout(() => exchanges.delete(code), 60_000).unref?.();
+  }
+  return pending;
+}
+
+/** Withings' "same arguments in less than 10 seconds": a duplicate of a request already made. */
+export const isDuplicate = (e: unknown) => e instanceof WithingsError && e.status === 601;
 
 const refresh = (refresh_token: string) =>
   tokenRequest({ grant_type: "refresh_token", refresh_token });

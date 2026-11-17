@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCode, storeTokens } from "@/lib/withings";
+import { exchangeCode, isDuplicate, storeTokens } from "@/lib/withings";
 
 /**
  * Withings' "Test" button (and its URL checks) call the callback with no OAuth parameters and need
@@ -43,6 +43,9 @@ export async function GET(req: Request) {
     await storeTokens(await exchangeCode(code));
     return NextResponse.redirect(new URL("/settings?withings=connected", url));
   } catch (e) {
+    // a twin of this request (on another server instance) already exchanged the code; if its
+    // response reached the browser, the tokens are there, so let Settings check
+    if (isDuplicate(e)) return NextResponse.redirect(new URL("/settings?withings=check", url));
     return fail(e instanceof Error ? e.message : "the token exchange failed");
   }
 }

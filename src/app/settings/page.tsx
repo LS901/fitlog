@@ -82,11 +82,13 @@ function Settings() {
   // straight after connecting, pull everything once; from then on the app syncs by itself
   const firstSync = useRef(false);
   useEffect(() => {
-    if (flash !== "connected" || firstSync.current) return;
+    // "check": the callback hit a duplicate sign-in, so only sync if the tokens arrived after all
+    const connected = flash === "connected" || (flash === "check" && status?.connected);
+    if (!connected || firstSync.current) return;
     firstSync.current = true;
     void sync(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flash]);
+  }, [flash, status]);
 
   const importCsv = async (f?: File) => {
     if (!f) return;
@@ -114,19 +116,27 @@ function Settings() {
     if (jsonRef.current) jsonRef.current.value = "";
   };
 
+  const justConnected = flash === "connected" || (flash === "check" && !!status?.connected);
+  const banner =
+    msg ||
+    (justConnected
+      ? syncMsg || "Withings connected. Syncing…"
+      : flash === "check"
+        ? status
+          ? "Withings connection failed: your browser opened the sign-in twice at once. Try again."
+          : "Checking the Withings connection…"
+        : flash === "unconfigured"
+          ? "Withings keys aren't set up yet (see below)."
+          : flash
+            ? `Withings connection failed${flashReason ? `: ${flashReason}` : ""}. Try again.`
+            : "");
+
   return (
     <div className="space-y-4 pt-2">
       <h1 className="text-2xl font-semibold">Settings</h1>
 
-      {(flash || msg) && (
-        <p className="rounded-xl bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
-          {msg ||
-            (flash === "connected"
-              ? "Withings connected. Syncing…"
-              : flash === "unconfigured"
-                ? "Withings keys aren't set up yet (see below)."
-                : `Withings connection failed${flashReason ? `: ${flashReason}` : ""}. Try again.`)}
-        </p>
+      {banner && (
+        <p className="rounded-xl bg-zinc-900 px-4 py-3 text-sm text-zinc-300">{banner}</p>
       )}
 
       <PreferencesCard />

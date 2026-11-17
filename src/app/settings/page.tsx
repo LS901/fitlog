@@ -11,7 +11,12 @@ import {
   setLastBackup,
 } from "@/lib/backup";
 import { addMeasurements, db, importAll } from "@/lib/db";
-import { forgetWithingsSync, syncWithings, withingsSyncState } from "@/lib/withingsSync";
+import {
+  forgetWithingsSync,
+  syncWithings,
+  withingsNeedsReconnect,
+  withingsSyncState,
+} from "@/lib/withingsSync";
 import { parseMeasurementCsv } from "@/lib/measures";
 import { GoalsCard } from "@/components/GoalsCard";
 import { PlaybookCard } from "@/components/PlaybookCard";
@@ -64,7 +69,7 @@ function Settings() {
       );
     } catch (e) {
       const m = e instanceof Error ? e.message : "Sync failed";
-      setSyncMsg(m === "not_connected" ? "Withings isn't connected any more. Connect it again." : m);
+      setSyncMsg(m === "not_connected" ? "" : m);
       if (m === "not_connected") loadStatus();
     } finally {
       setSyncState(withingsSyncState());
@@ -139,9 +144,17 @@ function Settings() {
             and redeploy (or in <code>.env.local</code> when running locally).
           </p>
         ) : !status.connected ? (
-          <a href="/api/withings/connect" className={`${btnCls} block text-center`}>
-            Connect Withings
-          </a>
+          <div className="space-y-2">
+            {syncState.lastError && withingsNeedsReconnect() && (
+              <p role="status" className="text-sm text-amber-400">
+                Withings stopped accepting this device&apos;s sign-in. Connect again to resume
+                syncing; nothing already synced is lost.
+              </p>
+            )}
+            <a href="/api/withings/connect" className={`${btnCls} block text-center`}>
+              Connect Withings
+            </a>
+          </div>
         ) : (
           <div className="space-y-2">
             <div className="flex gap-2">

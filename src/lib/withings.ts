@@ -27,6 +27,23 @@ interface Tokens {
   expires_in: number;
 }
 
+/** A non-zero `status` in a Withings response body (Withings answers HTTP 200 either way). */
+class WithingsError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Token-endpoint statuses meaning the refresh token is dead: 503 ("invalid params") is what a
+ * rotated-away or revoked refresh token gets; 100–102, 200 and 401 are authentication failures.
+ * Anything else (e.g. 601 too many requests) may be temporary, so the tokens are kept.
+ */
+const DEAD_REFRESH = new Set([100, 101, 102, 200, 401, 503]);
+
 async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
   const c = config();
   if (!c) throw new Error("Withings is not configured");
@@ -41,7 +58,7 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
     }),
   });
   const json = await res.json();
-  if (json.status !== 0) throw new Error(`Withings token error (${json.status})`);
+  if (json.status !== 0) throw new WithingsError(`Withings token error (${json.status})`, json.status);
   return json.body as Tokens;
 }
 
@@ -72,15 +89,29 @@ export async function isConnected() {
   return !!(jar.get("wt_refresh") || jar.get("wt_access"));
 }
 
-async function accessToken(): Promise<string | null> {
+/**
+ * Makes sure there's a usable access token, refreshing it when it has expired. Withings rotates
+ * the refresh token on every refresh and the old one stops working, and the new one only lives in
+ * this response's cookies. So the sync route returns straight after a refresh (`"refreshed"`) and
+ * the client asks again: the less the response carries, the less likely the phone loses it (and
+ * with it the only valid refresh token) by suspending the app mid-request.
+ * Throws "not_connected", after clearing the cookies, when Withings no longer accepts the token.
+ */
+export async function ensureAccess(): Promise<"ready" | "refreshed"> {
   const jar = await cookies();
-  const access = jar.get("wt_access")?.value;
-  if (access) return access;
+  if (jar.get("wt_access")?.value) return "ready";
   const rt = jar.get("wt_refresh")?.value;
-  if (!rt) return null;
-  const t = await refresh(rt);
-  await storeTokens(t);
-  return t.access_token;
+  if (!rt) throw new Error("not_connected");
+  try {
+    await storeTokens(await refresh(rt));
+  } catch (e) {
+    if (e instanceof WithingsError && DEAD_REFRESH.has(e.status)) {
+      await clearTokens();
+      throw new Error("not_connected");
+    }
+    throw e;
+  }
+  return "refreshed";
 }
 
 /** Withings measure type codes → our types. */
@@ -102,9 +133,14 @@ export interface WithingsRow {
   ext: string;
 }
 
+/**
+ * Readings changed since `sinceUnix`; call `ensureAccess` first. Throws "access_expired" (and drops
+ * the access cookie, so the next call refreshes) when Withings rejects the access token early.
+ */
 export async function fetchMeasures(sinceUnix: number): Promise<WithingsRow[]> {
-  const token = await accessToken();
-  if (!token) throw new Error("not_connected");
+  const jar = await cookies();
+  const token = jar.get("wt_access")?.value;
+  if (!token) throw new Error("access_expired");
 
   const rows: WithingsRow[] = [];
   let offset = 0;
@@ -123,6 +159,10 @@ export async function fetchMeasures(sinceUnix: number): Promise<WithingsRow[]> {
       }),
     });
     const json = await res.json();
+    if (json.status === 401) {
+      jar.delete("wt_access");
+      throw new Error("access_expired");
+    }
     if (json.status !== 0) throw new Error(`Withings measure error (${json.status})`);
     for (const grp of json.body.measuregrps ?? []) {
       for (const m of grp.measures ?? []) {

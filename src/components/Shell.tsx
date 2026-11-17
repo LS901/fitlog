@@ -39,8 +39,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
     // comes back to the foreground or reconnects, and every few minutes while it's on screen
     const run = async () => {
       if (document.visibilityState !== "visible") return;
-      const added = await autoSyncWithings();
-      if (added && !hasToast()) showToast(`Withings: ${added} new reading${added === 1 ? "" : "s"}`);
+      const { added, signedOut } = await autoSyncWithings();
+      if (signedOut) showToast("Withings signed you out. Reconnect it in Settings.", undefined, 10_000);
+      else if (added && !hasToast())
+        showToast(`Withings: ${added} new reading${added === 1 ? "" : "s"}`);
     };
     void run();
     const timer = setInterval(run, 5 * 60_000);

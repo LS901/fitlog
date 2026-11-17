@@ -13,6 +13,7 @@ import type { Measurement } from "./types";
 const LAST_SYNC = "fitlog.withings.lastSync";
 /** Message of the last failed sync (manual or automatic), cleared by a successful one. */
 const LAST_ERROR = "fitlog.withings.lastError";
+const RECONNECT = "Withings signed this device out. Connect it again.";
 /** Don't auto-sync more often than this. */
 const AUTO_MIN_GAP_MS = 30_000;
 
@@ -65,18 +66,26 @@ export function syncWithings(full = false): Promise<SyncResult> {
   inFlight ??= (async () => {
     try {
       const since = full ? 0 : Number(read(LAST_SYNC) ?? 0) || 0;
-      const res = await fetch(`/api/withings/sync?since=${since}`);
-      const json = await res.json().catch(() => ({}));
+      let res: Response;
+      let json: { rows?: Omit<Measurement, "id" | "source">[]; retry?: boolean; error?: string };
+      // the server answers { retry: true } right after refreshing the Withings token (see /api/withings/sync)
+      for (let attempt = 0; ; attempt++) {
+        res = await fetch(`/api/withings/sync?since=${since}`);
+        json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.retry || attempt === 2) break;
+      }
       if (res.status === 401) forgetWithingsSync();
       if (!res.ok) throw new Error(json.error || `Sync failed (HTTP ${res.status})`);
-      const rows = json.rows as Omit<Measurement, "id" | "source">[];
+      const rows = json.rows;
+      if (!rows) throw new Error("Withings didn't answer in time. Try again.");
       const added = await addMeasurements(rows.map((r) => ({ ...r, source: "withings" as const })));
       // a minute of overlap: readings can reach Withings a little after they were taken
       write(LAST_SYNC, String(Math.floor(Date.now() / 1000) - 60));
       write(LAST_ERROR, null);
       return { rows: rows.length, added };
     } catch (e) {
-      write(LAST_ERROR, e instanceof Error && e.message ? e.message : "Sync failed");
+      const m = e instanceof Error && e.message ? e.message : "Sync failed";
+      write(LAST_ERROR, m === "not_connected" ? RECONNECT : m);
       throw e;
     } finally {
       inFlight = null;
@@ -85,18 +94,23 @@ export function syncWithings(full = false): Promise<SyncResult> {
   return inFlight;
 }
 
+/** True when the last sync found the Withings sign-in gone, so the user has to connect again. */
+export const withingsNeedsReconnect = () => read(LAST_ERROR) === RECONNECT;
+
 /**
  * Quiet background sync: only when Withings has been synced before on this device, online, and not
- * tried in the last 30 s. Resolves to the number of new readings (0 on any failure).
+ * tried in the last 30 s. `added`: new readings (0 on any failure); `signedOut`: this attempt found
+ * the Withings sign-in gone (auto-sync then stops until the user connects again).
  */
-export async function autoSyncWithings(): Promise<number> {
-  if (!autoSyncEnabled() || inFlight) return 0;
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
-  if (Date.now() - lastAttempt < AUTO_MIN_GAP_MS) return 0;
+export async function autoSyncWithings(): Promise<{ added: number; signedOut: boolean }> {
+  const none = { added: 0, signedOut: false };
+  if (!autoSyncEnabled() || inFlight) return none;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return none;
+  if (Date.now() - lastAttempt < AUTO_MIN_GAP_MS) return none;
   lastAttempt = Date.now();
   try {
-    return (await syncWithings()).added;
-  } catch {
-    return 0;
+    return { added: (await syncWithings()).added, signedOut: false };
+  } catch (e) {
+    return { added: 0, signedOut: e instanceof Error && e.message === "not_connected" };
   }
 }

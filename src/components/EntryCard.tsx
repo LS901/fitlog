@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { EQUIPMENT_KEY, NO_EQUIPMENT, allowsLibraryEquipment, type MyEquipment } from "@/lib/equipment";
 import { alternativesFor, exerciseProgressHref, isBarbell } from "@/lib/exercises";
 import { platesFor, warmupRamp } from "@/lib/plates";
 import { parseRepTarget, suggestionLabel } from "@/lib/progression";
 import { showToast } from "@/lib/toast";
 import { carryDown, formatSets, type ExercisePlan } from "@/lib/workouts";
 import type { Effort, SessionEntry } from "@/lib/types";
+import { useSetting } from "@/lib/useSetting";
 import { ExerciseThumb } from "./ExerciseInfo";
 import { Card, btnGhostCls, inputCls } from "./ui";
 
@@ -368,7 +370,8 @@ function SwapPanel({
   onCancel: () => void;
 }) {
   const [custom, setCustom] = useState("");
-  const alts = alternativesFor(name, knownNames);
+  const equipment = useSetting<MyEquipment>(EQUIPMENT_KEY, NO_EQUIPMENT);
+  const alts = alternativesFor(name, knownNames, 8, (eq) => allowsLibraryEquipment(equipment, eq));
   return (
     <div className="mt-3 space-y-2 rounded-xl border border-zinc-800 p-3">
       <p className="text-xs text-zinc-400">Swap {name} for (same muscles):</p>

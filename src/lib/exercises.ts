@@ -128,7 +128,12 @@ const isConditioning = (name: string) =>
  * the user already trains (`known`, which carry history) come first, then the library; anything
  * that maps to the same library exercise as one already listed is skipped.
  */
-export function alternativesFor(name: string, known: string[] = [], limit = 8): string[] {
+export function alternativesFor(
+  name: string,
+  known: string[] = [],
+  limit = 8,
+  allowed: (equipment?: string | null) => boolean = () => true,
+): string[] {
   const muscles = findExercise(name)?.info.muscles ?? [];
   if (!muscles.length) return [];
   const kind = isConditioning(name);
@@ -142,6 +147,7 @@ export function alternativesFor(name: string, known: string[] = [], limit = 8): 
     if (key === self || seen.has(id) || !info) continue;
     if (!info.muscles.some((m) => muscles.includes(m))) continue;
     if (isConditioning(candidate) !== kind) continue;
+    if (!allowed(info.equipment)) continue;
     seen.add(id);
     out.push(candidate);
     if (out.length >= limit) break;

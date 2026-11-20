@@ -38,6 +38,11 @@ Tailwind), so keep the code idiomatic and conventional.
   on the name). Saved phases keep `brief` (prefills next time), `summary` and coach `notes`. Requires
   `ANTHROPIC_API_KEY` and `FITLOG_ACCESS_CODE`; the page sends the code as `x-fitlog-code` (remembered in localStorage)
   so strangers can't spend the API credit. Home shows `PhaseReminder` 10 days before a phase ends (`nextPhasePrompt`).
+- Equipment (`src/lib/equipment.ts`, `EquipmentCard` in Settings, `settings.equipment`): tap-to-toggle checklist
+  (grouped ids, presets, dumbbell/kettlebell max kg, free-text notes) rather than a CSV. When it's filled in, the plan
+  page defaults to the "My equipment" chip and sends `equipmentList` (`describeEquipment`) beside the brief; the
+  prompt then says to use only that kit. Swaps on a workout drop library alternatives the kit can't do
+  (`allowsLibraryEquipment`, coarse map from free-exercise-db's equipment field).
 - Coach playbook (experiment, `src/lib/playbook.ts`, `PlaybookCard` in Settings, `settings.coachPlaybook`): a coach's
   philosophy (free text) plus hard rules (max sets per muscle per week, rep range, max exercises per session, banned
   exercises). With it, `planSystem(playbook)` switches the system prompt to "drafting for a coach" and appends the

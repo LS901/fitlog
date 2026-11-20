@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { readAccessCode, saveAccessCode } from "@/lib/accessCode";
 import { db, getGoals } from "@/lib/db";
+import {
+  EQUIPMENT_KEY,
+  EquipmentSchema,
+  NO_EQUIPMENT,
+  describeEquipment,
+  hasEquipment,
+  type MyEquipment,
+} from "@/lib/equipment";
 import { parseProgrammeText } from "@/lib/measures";
 import { addDays, phaseError, suggestedPhaseStart } from "@/lib/phases";
 import { buildTrainingSummary, type PlanResponse } from "@/lib/plan";
@@ -35,6 +43,8 @@ const FOCUS = [
   "Mobility",
 ];
 const EQUIPMENT = ["Full gym", "Dumbbells and bench", "Home: bodyweight and bands"];
+/** brief.equipment when the generator should use the checklist from Settings */
+const MY_EQUIPMENT = "My equipment";
 
 const DEFAULT_BRIEF: PhaseBrief = {
   goal: GOALS[0],
@@ -96,6 +106,21 @@ function Planner({
   const playbook = parsedPlaybook.success && hasPlaybook(parsedPlaybook.data) ? parsedPlaybook.data : undefined;
   const coachLabel = playbook?.coachName?.trim() || "Coach";
   const [usePlaybook, setUsePlaybook] = useState(true);
+  const storedEquipment = useSetting<MyEquipment>(EQUIPMENT_KEY, NO_EQUIPMENT);
+  const parsedEquipment = EquipmentSchema.safeParse(storedEquipment);
+  const myEquipment = parsedEquipment.success && hasEquipment(parsedEquipment.data) ? parsedEquipment.data : undefined;
+  // with a list in Settings, use it unless a preset chip has been tapped on this page
+  const [equipmentTouched, setEquipmentTouched] = useState(false);
+  const equipmentChoice =
+    myEquipment && !equipmentTouched
+      ? MY_EQUIPMENT
+      : !myEquipment && brief.equipment === MY_EQUIPMENT
+        ? EQUIPMENT[0]
+        : brief.equipment;
+  const pickEquipment = (e: string) => {
+    setEquipmentTouched(true);
+    set("equipment", e);
+  };
   const withPlaybook = usePlaybook && !!playbook;
   /** coach whose playbook drafted the current result */
   const [resultCoach, setResultCoach] = useState<string | undefined>();
@@ -134,12 +159,14 @@ function Planner({
     const payload = {
       brief: {
         ...brief,
+        equipment: equipmentChoice,
         goal,
         avoid: brief.avoid?.trim() || undefined,
         notes: brief.notes?.trim() || undefined,
       },
       summary,
       ...(withPlaybook && { playbook }),
+      ...(equipmentChoice === MY_EQUIPMENT && myEquipment && { equipmentList: describeEquipment(myEquipment) }),
     };
 
     setBusy(true);
@@ -332,12 +359,35 @@ function Planner({
 
       <Card title="Equipment">
         <div className="flex flex-wrap gap-2">
+          {myEquipment && (
+            <Chip active={equipmentChoice === MY_EQUIPMENT} onClick={() => pickEquipment(MY_EQUIPMENT)}>
+              {MY_EQUIPMENT}
+            </Chip>
+          )}
           {EQUIPMENT.map((e) => (
-            <Chip key={e} active={brief.equipment === e} onClick={() => set("equipment", e)}>
+            <Chip key={e} active={equipmentChoice === e} onClick={() => pickEquipment(e)}>
               {e}
             </Chip>
           ))}
         </div>
+        {equipmentChoice === MY_EQUIPMENT && myEquipment ? (
+          <p className="mt-2 whitespace-pre-line text-xs text-zinc-500">
+            {describeEquipment(myEquipment)}{" "}
+            <Link href="/settings" className="text-emerald-400">
+              Edit
+            </Link>
+          </p>
+        ) : (
+          !myEquipment && (
+            <p className="mt-2 text-xs text-zinc-500">
+              List your exact kit in{" "}
+              <Link href="/settings" className="text-emerald-400">
+                Settings → Equipment
+              </Link>{" "}
+              and phases will only use what you have.
+            </p>
+          )
+        )}
       </Card>
 
       <Card title="Anything else?">

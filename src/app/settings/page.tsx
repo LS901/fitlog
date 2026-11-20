@@ -18,6 +18,7 @@ import {
   withingsSyncState,
 } from "@/lib/withingsSync";
 import { parseMeasurementCsv } from "@/lib/measures";
+import { EquipmentCard } from "@/components/EquipmentCard";
 import { GoalsCard } from "@/components/GoalsCard";
 import { PlaybookCard } from "@/components/PlaybookCard";
 import { PreferencesCard } from "@/components/PreferencesCard";
@@ -140,6 +141,8 @@ function Settings() {
       )}
 
       <PreferencesCard />
+
+      <EquipmentCard />
 
       <GoalsCard />
 

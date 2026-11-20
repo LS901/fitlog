@@ -73,6 +73,8 @@ export const PlanRequestSchema = z.object({
   summary: TrainingSummarySchema,
   /** coach playbook to draft with (experiment, see playbook.ts) */
   playbook: PlaybookSchema.optional(),
+  /** the user's kit from Settings (`describeEquipment`), when they chose "My equipment" */
+  equipmentList: str(2000).optional(),
 });
 
 export type TrainingSummary = z.infer<typeof TrainingSummarySchema>;
@@ -267,7 +269,10 @@ export function planSystem(playbook?: Playbook): string {
   return parts.join("\n\n");
 }
 
-export function renderPlanPrompt({ brief, summary }: PlanRequest, libraryNames: string[]): string {
+export function renderPlanPrompt(
+  { brief, summary, equipmentList }: PlanRequest,
+  libraryNames: string[],
+): string {
   const lines: string[] = [];
   lines.push(`Today is ${summary.today}. Please write my next ${brief.weeks}-week phase.`, "");
   lines.push("## What I want");
@@ -275,7 +280,12 @@ export function renderPlanPrompt({ brief, summary }: PlanRequest, libraryNames: 
   if (brief.focus.length) lines.push(`- Focus on: ${brief.focus.join(", ")}`);
   lines.push(`- Training days per week: ${brief.daysPerWeek}`);
   lines.push(`- Time per session: about ${brief.sessionMinutes} minutes`);
-  lines.push(`- Equipment: ${brief.equipment}`);
+  if (equipmentList) {
+    lines.push(
+      "- Equipment: only what's listed here. Every exercise must be doable with this kit; don't assume anything that isn't listed. Respect any weight limits.",
+      ...equipmentList.split("\n").map((l) => `  - ${l}`),
+    );
+  } else lines.push(`- Equipment: ${brief.equipment}`);
   lines.push(
     `- Alternating volume/heavy weeks: ${brief.alternate ? `yes (write ${brief.daysPerWeek} volume days and ${brief.daysPerWeek} heavy days)` : "no"}`,
   );

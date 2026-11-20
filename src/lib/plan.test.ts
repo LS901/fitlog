@@ -172,6 +172,32 @@ describe("renderPlanPrompt", () => {
   });
 });
 
+describe("renderPlanPrompt with an equipment list", () => {
+  it("lists the kit and tells Claude to stick to it", () => {
+    const summary = buildTrainingSummary({ sessions: [], programmes: [], weights: [], now });
+    const text = renderPlanPrompt(
+      {
+        brief: {
+          goal: "x",
+          focus: [],
+          daysPerWeek: 3,
+          sessionMinutes: 60,
+          weeks: 8,
+          equipment: "My equipment",
+          alternate: false,
+        },
+        summary,
+        equipmentList: "Free weights: Dumbbells (up to 30 kg)\nCardio: Rowing machine",
+      },
+      [],
+    );
+    expect(text).toContain("- Equipment: only what's listed here");
+    expect(text).toContain("  - Free weights: Dumbbells (up to 30 kg)");
+    expect(text).toContain("  - Cardio: Rowing machine");
+    expect(text).not.toContain("- Equipment: My equipment");
+  });
+});
+
 describe("PlanRequestSchema", () => {
   it("rejects oversized or malformed input", () => {
     const summary = buildTrainingSummary({ sessions: [], programmes: [], weights: [], now });

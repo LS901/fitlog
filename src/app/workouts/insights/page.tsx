@@ -19,6 +19,7 @@ import { addDays, currentPhaseProgramme, lastEndedPhaseProgramme } from "@/lib/p
 import { mondayOf } from "@/lib/schedule";
 import { DEFAULT_PLATES } from "@/lib/plates";
 import { useSetting } from "@/lib/useSetting";
+import { AIInsights } from "@/components/AIInsights";
 import { Card } from "@/components/ui";
 
 const NONE: Record<string, number> = {};
@@ -64,6 +65,8 @@ export default function InsightsPage() {
           ← Train
         </Link>
       </div>
+
+      <AIInsights tab="training" />
 
       {suggestDeload && (
         <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm">

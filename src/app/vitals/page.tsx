@@ -1,11 +1,13 @@
 "use client";
 
+import { AIInsights } from "@/components/AIInsights";
 import { MetricPanel } from "@/components/MetricPanel";
 
 export default function VitalsPage() {
   return (
     <div className="space-y-4 pt-2">
       <h1 className="text-2xl font-semibold">Vitals</h1>
+      <AIInsights tab="vitals" />
       <MetricPanel
         groups={[
           { title: "Resting heart rate", types: ["restingHr"] },

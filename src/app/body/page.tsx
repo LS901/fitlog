@@ -1,5 +1,6 @@
 "use client";
 
+import { AIInsights } from "@/components/AIInsights";
 import { GoalProgress } from "@/components/GoalProgress";
 import { MetricPanel } from "@/components/MetricPanel";
 import { useGoals } from "@/lib/useGoals";
@@ -10,6 +11,7 @@ export default function BodyPage() {
     <div className="space-y-4 pt-2">
       <h1 className="text-2xl font-semibold">Body</h1>
       <GoalProgress />
+      <AIInsights tab="body" />
       <MetricPanel
         groups={[
           { title: "Weight", types: ["weight"], goalLine: goals.weightKg },

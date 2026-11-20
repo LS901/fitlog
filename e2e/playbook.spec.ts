@@ -38,8 +38,9 @@ test("coach playbook: saved in Settings, sent with the plan, rule breaks re-chec
   await page.getByLabel("Access code").fill("test");
   await page.getByRole("button", { name: "Generate phase" }).click();
 
-  expect(sent.playbook).toMatchObject({ coachName: "Sam", repMax: 12, banned: ["Leg extension"] });
+  // wait for the answer before reading what was sent (the click returns before the request goes)
   await expect(page.getByText("Drafted with Sam's playbook")).toBeVisible();
+  expect(sent.playbook).toMatchObject({ coachName: "Sam", repMax: 12, banned: ["Leg extension"] });
   await expect(page.getByText(/Leg extension is on the banned list/)).toBeVisible();
 
   // fixing it by hand clears the warning

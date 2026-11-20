@@ -1,6 +1,7 @@
 "use client";
 
 import { setSetting } from "@/lib/db";
+import { PROFILE_KEY, type Profile } from "@/lib/healthInsights";
 import { DEFAULT_BAR, DEFAULT_PLATES } from "@/lib/plates";
 import { useSetting } from "@/lib/useSetting";
 import { Card, inputCls } from "./ui";
@@ -23,7 +24,13 @@ export function PreferencesCard() {
   const wakeLock = useSetting("wakeLock", true);
   const bar = useSetting("barKg", DEFAULT_BAR);
   const plates = useSetting("plates", DEFAULT_PLATES);
-  if ([name, includeWarmup, wakeLock, bar, plates].some((v) => v === undefined)) return null;
+  const profile = useSetting<Profile>(PROFILE_KEY, {});
+  if ([name, includeWarmup, wakeLock, bar, plates, profile].some((v) => v === undefined)) return null;
+  const saveProfile = (next: Partial<Profile>) => setSetting(PROFILE_KEY, { ...profile, ...next });
+  const positive = (text: string) => {
+    const n = Number(text);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
   return (
     <Card title="You & your gym">
       <div className="space-y-3">
@@ -37,6 +44,51 @@ export function PreferencesCard() {
             onBlur={(e) => setSetting("displayName", e.target.value.trim())}
           />
         </label>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="text-xs text-zinc-400">
+            Sex
+            <select
+              className={`${inputCls} mt-1`}
+              value={profile!.sex ?? ""}
+              onChange={(e) =>
+                saveProfile({ sex: (e.target.value || undefined) as Profile["sex"] })
+              }
+            >
+              <option value="">–</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+          <label className="text-xs text-zinc-400">
+            Year of birth
+            <input
+              type="number"
+              inputMode="numeric"
+              className={`${inputCls} mt-1`}
+              defaultValue={profile!.birthYear ?? ""}
+              onBlur={(e) => {
+                const y = positive(e.target.value);
+                saveProfile({ birthYear: y && y >= 1900 && y <= new Date().getFullYear() ? Math.round(y) : undefined });
+              }}
+            />
+          </label>
+          <label className="text-xs text-zinc-400">
+            Height (cm)
+            <input
+              type="number"
+              inputMode="decimal"
+              className={`${inputCls} mt-1`}
+              defaultValue={profile!.heightCm ?? ""}
+              onBlur={(e) => {
+                const h = positive(e.target.value);
+                saveProfile({ heightCm: h && h >= 50 && h <= 260 ? h : undefined });
+              }}
+            />
+          </label>
+        </div>
+        <p className="-mt-1 text-xs text-zinc-500">
+          Optional. Only used for AI insights, so Claude can judge readings against ranges for you.
+        </p>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

@@ -269,30 +269,9 @@ export function planSystem(playbook?: Playbook): string {
   return parts.join("\n\n");
 }
 
-export function renderPlanPrompt(
-  { brief, summary, equipmentList }: PlanRequest,
-  libraryNames: string[],
-): string {
+/** The "recent training" and "previous phase" sections, shared with the training insights prompt. */
+export function renderTrainingSummary(summary: TrainingSummary): string[] {
   const lines: string[] = [];
-  lines.push(`Today is ${summary.today}. Please write my next ${brief.weeks}-week phase.`, "");
-  lines.push("## What I want");
-  lines.push(`- Main goal: ${brief.goal}`);
-  if (brief.focus.length) lines.push(`- Focus on: ${brief.focus.join(", ")}`);
-  lines.push(`- Training days per week: ${brief.daysPerWeek}`);
-  lines.push(`- Time per session: about ${brief.sessionMinutes} minutes`);
-  if (equipmentList) {
-    lines.push(
-      "- Equipment: only what's listed here. Every exercise must be doable with this kit; don't assume anything that isn't listed. Respect any weight limits.",
-      ...equipmentList.split("\n").map((l) => `  - ${l}`),
-    );
-  } else lines.push(`- Equipment: ${brief.equipment}`);
-  lines.push(
-    `- Alternating volume/heavy weeks: ${brief.alternate ? `yes (write ${brief.daysPerWeek} volume days and ${brief.daysPerWeek} heavy days)` : "no"}`,
-  );
-  if (brief.avoid) lines.push(`- Avoid / injuries: ${brief.avoid}`);
-  if (brief.notes) lines.push(`- Other notes: ${brief.notes}`);
-  lines.push("");
-
   lines.push(`## My recent training (last ${summary.windowWeeks} weeks)`);
   lines.push(
     `${summary.totalSessions} workouts logged, about ${summary.sessionsPerWeek} per week.`,
@@ -331,6 +310,35 @@ export function renderPlanPrompt(
       lines.push(`Exercises from it I never logged: ${summary.notLogged.join(", ")}.`);
     lines.push("");
   }
+
+  return lines;
+}
+
+export function renderPlanPrompt(
+  { brief, summary, equipmentList }: PlanRequest,
+  libraryNames: string[],
+): string {
+  const lines: string[] = [];
+  lines.push(`Today is ${summary.today}. Please write my next ${brief.weeks}-week phase.`, "");
+  lines.push("## What I want");
+  lines.push(`- Main goal: ${brief.goal}`);
+  if (brief.focus.length) lines.push(`- Focus on: ${brief.focus.join(", ")}`);
+  lines.push(`- Training days per week: ${brief.daysPerWeek}`);
+  lines.push(`- Time per session: about ${brief.sessionMinutes} minutes`);
+  if (equipmentList) {
+    lines.push(
+      "- Equipment: only what's listed here. Every exercise must be doable with this kit; don't assume anything that isn't listed. Respect any weight limits.",
+      ...equipmentList.split("\n").map((l) => `  - ${l}`),
+    );
+  } else lines.push(`- Equipment: ${brief.equipment}`);
+  lines.push(
+    `- Alternating volume/heavy weeks: ${brief.alternate ? `yes (write ${brief.daysPerWeek} volume days and ${brief.daysPerWeek} heavy days)` : "no"}`,
+  );
+  if (brief.avoid) lines.push(`- Avoid / injuries: ${brief.avoid}`);
+  if (brief.notes) lines.push(`- Other notes: ${brief.notes}`);
+  lines.push("");
+
+  lines.push(...renderTrainingSummary(summary));
 
   lines.push("## Exercise library (names with how-to photos in the app)");
   lines.push(libraryNames.join("; "));

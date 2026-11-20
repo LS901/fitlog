@@ -59,6 +59,14 @@ Tailwind), so keep the code idiomatic and conventional.
   medium, structured `ReviewOutputSchema`, refusal fallback). The result is stored on `WorkoutSession.review`. Same
   `ANTHROPIC_API_KEY` + `FITLOG_ACCESS_CODE` gate as the planner (`src/lib/apiAuth.ts` server side,
   `src/lib/accessCode.ts` for the remembered code); hidden when GET reports `configured: false`.
+- AI insights (`src/lib/healthInsights.ts`, `src/app/api/insights/route.ts`, `AIInsights.tsx`): an "AI insights ✦" card
+  on Body, Vitals, Food and Training → Insights. On request only, `buildInsightsRequest` digests that tab's data
+  (per metric: readings, first/latest, 30/90-day averages, range, last 16 weekly averages; food 7/30/90-day macro
+  averages + targets; Training reuses `buildTrainingSummary`/`renderTrainingSummary` from plan.ts plus 4-week sets
+  per muscle) with the optional `settings.profile` (sex, birth year, height; in "You & your gym") and POSTs it.
+  Claude Opus 5.5 (effort medium, `InsightsOutputSchema`: headline, findings with good/watch/flag + action, caveats)
+  answers; the result is kept in `settings` `aiInsights.<tab>`. The system prompt treats scale estimates as noisy,
+  flags out-of-range vitals for a GP and never suggests changing reps. Same key + access code gate as the planner.
 - Exercise how-to: `src/lib/exercises.ts` + `src/data/exercises.json` + `public/exercises/*.jpg` (photos and instructions from the
   public-domain free-exercise-db, hand-mapped to the seeded programme's names; `approx` marks a similar-but-not-identical
   exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted
@@ -138,7 +146,7 @@ Brand strings live in `landing/src/site.ts`. See `landing/README.md`.
 - Don't hard-code the owner's measurements, goals or photos in source. Goals and targets are user-editable settings.
 - Data only leaves the device for Withings sync and, when the user presses Generate, the phase generator (brief +
   workout/weight summary, never photos), and when they press Get coach review (that workout, its notes and recent
-  history of its exercises). Keep it that way and say so in the UI when adding anything that sends data.
+  history of its exercises), and when they press Generate AI insights on a tab (that tab's digest + optional profile). Keep it that way and say so in the UI when adding anything that sends data.
 
 ## Roadmap
 1. ~~**Nutrition + MyFitnessPal.**~~ Done: `/nutrition` page (intake vs target, 7-day average, calories chart), manual

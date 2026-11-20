@@ -14,6 +14,12 @@ const LAST_SYNC = "fitlog.withings.lastSync";
 /** Message of the last failed sync (manual or automatic), cleared by a successful one. */
 const LAST_ERROR = "fitlog.withings.lastError";
 const RECONNECT = "Withings signed this device out. Connect it again.";
+/**
+ * Version of the Withings type mapping this device last synced with. When the app learns new types
+ * (bone mass etc.), the next sync pulls everything once so their earlier readings arrive too.
+ */
+const TYPES_KEY = "fitlog.withings.typesVersion";
+export const WITHINGS_TYPES_VERSION = 2;
 /** Don't auto-sync more often than this. */
 const AUTO_MIN_GAP_MS = 30_000;
 
@@ -65,7 +71,8 @@ export function withingsSyncState(): { lastSync: number | null; lastError: strin
 export function syncWithings(full = false): Promise<SyncResult> {
   inFlight ??= (async () => {
     try {
-      const since = full ? 0 : Number(read(LAST_SYNC) ?? 0) || 0;
+      const backfill = Number(read(TYPES_KEY) ?? 1) < WITHINGS_TYPES_VERSION;
+      const since = full || backfill ? 0 : Number(read(LAST_SYNC) ?? 0) || 0;
       let res: Response;
       let json: { rows?: Omit<Measurement, "id" | "source">[]; retry?: boolean; error?: string };
       // the server answers { retry: true } right after refreshing the Withings token (see /api/withings/sync)
@@ -81,6 +88,7 @@ export function syncWithings(full = false): Promise<SyncResult> {
       const added = await addMeasurements(rows.map((r) => ({ ...r, source: "withings" as const })));
       // a minute of overlap: readings can reach Withings a little after they were taken
       write(LAST_SYNC, String(Math.floor(Date.now() / 1000) - 60));
+      write(TYPES_KEY, String(WITHINGS_TYPES_VERSION));
       write(LAST_ERROR, null);
       return { rows: rows.length, added };
     } catch (e) {

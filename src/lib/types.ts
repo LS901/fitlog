@@ -13,7 +13,18 @@ export type MeasureType =
   | "diastolic"
   | "spo2"
   | "sleepHours"
-  | "steps";
+  | "steps"
+  // more Withings readings (Body Comp / Body Scan scales; which ones arrive depends on the device)
+  | "fatMass"
+  | "boneMass"
+  | "bodyWater"
+  | "visceralFat"
+  | "bmr"
+  | "metabolicAge"
+  | "vascularAge"
+  | "pwv"
+  | "vo2max"
+  | "temperature";
 
 export type MeasureSource = "manual" | "withings" | "csv" | "trainerize";
 

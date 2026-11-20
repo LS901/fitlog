@@ -13,6 +13,8 @@ interface Group {
   types: MeasureType[];
   /** draw a dashed goal line at this value (in the unit of the first type) */
   goalLine?: number;
+  /** hide the chart until there's a reading (types only some scales measure) */
+  optional?: boolean;
 }
 
 /** Chart + latest values + quick-add form for a set of measurement types. */
@@ -77,7 +79,7 @@ export function MetricPanel({
         </Chip>
       </div>
 
-      {groups.map((g) => {
+      {groups.filter((g) => !g.optional || g.types.some((t) => latest.has(t))).map((g) => {
         // Charts with many lines are already busy, so the overlay is limited to 1–2 series.
         const overlay = weekly && g.types.length <= 2;
         return (

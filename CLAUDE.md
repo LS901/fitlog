@@ -103,6 +103,10 @@ Tailwind), so keep the code idiomatic and conventional.
   answers `{ retry: true }`) before fetching readings, and on a dead token clears the cookies and returns 401: the
   app then toasts and Settings asks to reconnect (`withingsNeedsReconnect`). Settings' Withings card shows the last
   sync, newest reading and last error (`withingsSyncState`), including failures of the automatic sync.
+  Besides weight/fat/lean/muscle/BP/HR/SpO₂ it maps the Body Comp/Scan extras (fat mass, bone mass, body water,
+  visceral fat, BMR, metabolic age, vascular age, PWV, VO₂ max, temperature; `TYPE_MAP`). Those show as `optional`
+  MetricPanel groups on Body/Vitals, hidden until a reading exists. Adding codes: bump `WITHINGS_TYPES_VERSION` so
+  each device does one full re-sync (`since=0`, de-duplicated) and old readings of the new types arrive.
   Needs `WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI` in `.env.local` (see `.env.example`).
 - CSV import (`parseMeasurementCsv`) accepts a Date column plus Weight / Fat % / Lean mass / Heart rate / etc.
 - Offline: `public/sw.js` (production only) is network-first for pages, cache-first for static assets. Pages that take

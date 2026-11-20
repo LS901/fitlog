@@ -67,3 +67,16 @@ describe("autoSyncWithings", () => {
     expect(withingsSyncState().lastSync).toBeNull();
   });
 });
+
+describe("new Withings types", () => {
+  it("pulls the whole history once when the type mapping has grown, then goes back to incremental", async () => {
+    store.set("fitlog.withings.lastSync", "1763000000");
+    let fetch = answer([200, { rows: [reading] }]);
+    await syncWithings();
+    expect(fetch.mock.calls[0][0]).toBe("/api/withings/sync?since=0");
+
+    fetch = answer([200, { rows: [] }]);
+    await syncWithings();
+    expect(fetch.mock.calls[0][0]).not.toBe("/api/withings/sync?since=0");
+  });
+});

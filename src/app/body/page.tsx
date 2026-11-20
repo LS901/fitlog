@@ -16,6 +16,12 @@ export default function BodyPage() {
           { title: "Body fat", types: ["bodyFat"] },
           { title: "Lean & muscle mass", types: ["leanMass", "muscleMass"] },
           { title: "Measurements", types: ["waist", "chest", "hips", "arm", "thigh"] },
+          { title: "Fat mass", types: ["fatMass"], optional: true },
+          { title: "Visceral fat", types: ["visceralFat"], optional: true },
+          { title: "Bone mass", types: ["boneMass"], optional: true },
+          { title: "Body water", types: ["bodyWater"], optional: true },
+          { title: "Basal metabolic rate", types: ["bmr"], optional: true },
+          { title: "Metabolic age", types: ["metabolicAge"], optional: true },
         ]}
         addable={[
           "weight",

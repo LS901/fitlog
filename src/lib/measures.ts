@@ -19,6 +19,16 @@ export const MEASURES: Record<
   spo2: { label: "SpO₂", unit: "%", decimals: 0 },
   sleepHours: { label: "Sleep", unit: "h", decimals: 1 },
   steps: { label: "Steps", unit: "", decimals: 0 },
+  fatMass: { label: "Fat mass", unit: "kg", decimals: 1 },
+  boneMass: { label: "Bone mass", unit: "kg", decimals: 1 },
+  bodyWater: { label: "Body water", unit: "kg", decimals: 1 },
+  visceralFat: { label: "Visceral fat", unit: "", decimals: 1 },
+  bmr: { label: "BMR", unit: "kcal", decimals: 0 },
+  metabolicAge: { label: "Metabolic age", unit: "yrs", decimals: 0 },
+  vascularAge: { label: "Vascular age", unit: "yrs", decimals: 0 },
+  pwv: { label: "Pulse wave velocity", unit: "m/s", decimals: 1 },
+  vo2max: { label: "VO₂ max", unit: "ml/kg/min", decimals: 1 },
+  temperature: { label: "Temperature", unit: "°C", decimals: 1 },
 };
 
 export const fmt = (type: MeasureType, v: number | undefined) =>

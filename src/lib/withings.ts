@@ -135,16 +135,29 @@ export async function ensureAccess(): Promise<"ready" | "refreshed"> {
   return "refreshed";
 }
 
-/** Withings measure type codes → our types. */
+/**
+ * Withings measure type codes → our types. Bump `WITHINGS_TYPES_VERSION` (withingsSync.ts) when
+ * adding codes, so devices pull the full history once and pick up the new types' old readings.
+ */
 const TYPE_MAP: Record<number, MeasureType> = {
   1: "weight",
   5: "leanMass",
   6: "bodyFat",
+  8: "fatMass",
   76: "muscleMass",
+  77: "bodyWater",
+  88: "boneMass",
+  170: "visceralFat",
+  226: "bmr",
+  227: "metabolicAge",
   9: "diastolic",
   10: "systolic",
   11: "restingHr",
   54: "spo2",
+  71: "temperature",
+  91: "pwv",
+  123: "vo2max",
+  155: "vascularAge",
 };
 
 export interface WithingsRow {

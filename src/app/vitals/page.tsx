@@ -13,6 +13,10 @@ export default function VitalsPage() {
           { title: "SpO₂", types: ["spo2"] },
           { title: "Sleep", types: ["sleepHours"] },
           { title: "Steps", types: ["steps"] },
+          { title: "Vascular age", types: ["vascularAge"], optional: true },
+          { title: "Pulse wave velocity", types: ["pwv"], optional: true },
+          { title: "VO₂ max", types: ["vo2max"], optional: true },
+          { title: "Temperature", types: ["temperature"], optional: true },
         ]}
         addable={["restingHr", "systolic", "diastolic", "spo2", "sleepHours", "steps"]}
       />

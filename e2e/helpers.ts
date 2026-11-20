@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { PHASE_6_PROGRAMME } from "../src/lib/seed";
-import type { SessionEntry, WorkoutSession } from "../src/lib/types";
+import type { Measurement, SessionEntry, WorkoutSession } from "../src/lib/types";
 
 /** Wednesday of Phase 6 week 2 (a heavy week), 10:00 local. */
 export const NOW = new Date(2026, 10, 11, 10);
@@ -30,7 +30,7 @@ export const sets = (n: number, weight: number, reps: number) =>
 export const backup = (sessions: WorkoutSession[], settings: { key: string; value: unknown }[] = []) => ({
   version: 1,
   exportedAt: NOW.toISOString(),
-  measurements: [],
+  measurements: [] as Measurement[],
   sessions,
   programmes: [PHASE_6_PROGRAMME],
   settings,

@@ -20,9 +20,9 @@ test("AI insights: Body sends a digest of the readings and keeps the answer", as
   await start(page, {
     ...backup([]),
     measurements: [
-      { date: day(10), type: "weight", value: 82, source: "withings" },
-      { date: day(3), type: "boneMass", value: 3.0, source: "withings" },
-      { date: day(3), type: "systolic", value: 120, source: "withings" },
+      { date: day(10), type: "weight" as const, value: 82, source: "withings" as const },
+      { date: day(3), type: "boneMass" as const, value: 3.0, source: "withings" as const },
+      { date: day(3), type: "systolic" as const, value: 120, source: "withings" as const },
     ],
   });
 

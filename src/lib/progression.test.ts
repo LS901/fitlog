@@ -33,33 +33,38 @@ describe("suggestNext", () => {
 
   it("adds an increment when every set hit the top of the range", () => {
     const s = suggestNext([point([[60, 12], [60, 12], [60, 12]])], range, 2.5);
-    expect(s).toMatchObject({ action: "increase", weight: 62.5, reps: 8 });
-    expect(s?.reason).toBe("Hit 3×12 at 60 kg last time");
+    expect(s).toEqual({ action: "increase", weight: 62.5, reason: "Hit 3×12 at 60 kg last time" });
+  });
+
+  it("never suggests reps", () => {
+    const cases = [
+      suggestNext([point([[60, 12], [60, 12]])], range, 2.5),
+      suggestNext([point([[60, 10], [60, 9]])], range, 2.5),
+      suggestNext([point([[100, 5]])], six, 5),
+    ];
+    for (const s of cases) expect(s && "reps" in s).toBe(false);
   });
 
   it("works for fixed targets", () => {
     expect(suggestNext([point([[100, 6], [100, 6], [100, 6], [100, 6]])], six, 5)).toMatchObject({
       action: "increase",
       weight: 105,
-      reps: 6,
     });
   });
 
-  it("holds the weight and adds a rep inside the range", () => {
-    expect(suggestNext([point([[60, 10], [60, 9], [60, 8]])], range, 2.5)).toMatchObject({
-      action: "reps",
-      weight: 60,
-      reps: 9,
-    });
+  it("holds the weight inside the range", () => {
+    const s = suggestNext([point([[60, 10], [60, 9], [60, 8]])], range, 2.5);
+    expect(s).toMatchObject({ action: "hold", weight: 60 });
+    expect(s?.reason).toBe("Stay at 60 kg until every set reaches 12");
   });
 
   it("holds after a miss, deloads after three in a row", () => {
     const miss = (d: string) => point([[100, 6], [100, 5], [100, 4]], undefined, d);
-    expect(suggestNext([miss("2026-11-02")], six, 5)).toMatchObject({ action: "hold", weight: 100, reps: 6 });
+    expect(suggestNext([miss("2026-11-02")], six, 5)).toMatchObject({ action: "hold", weight: 100 });
     expect(suggestNext([miss("2026-11-02"), miss("2026-11-09")], six, 5)?.reason).toMatch(/twice/);
     expect(
       suggestNext([miss("2026-11-02"), miss("2026-11-09"), miss("2026-11-16")], six, 5),
-    ).toMatchObject({ action: "deload", weight: 90, reps: 6 });
+    ).toMatchObject({ action: "deload", weight: 90 });
   });
 
   it("a miss streak is broken by a good session", () => {
@@ -70,7 +75,7 @@ describe("suggestNext", () => {
 
   it("repeats a hard top-of-range session once before moving up", () => {
     const hard = point([[20, 12], [20, 12]], "hard");
-    expect(suggestNext([hard], range, 2)).toMatchObject({ action: "hold", weight: 20, reps: 12 });
+    expect(suggestNext([hard], range, 2)).toMatchObject({ action: "hold", weight: 20 });
     expect(suggestNext([hard, hard], range, 2)).toMatchObject({ action: "increase", weight: 22 });
   });
 
@@ -78,31 +83,22 @@ describe("suggestNext", () => {
     expect(suggestNext([point([[20, 10], [20, 10]], "easy")], range, 2)).toMatchObject({
       action: "increase",
       weight: 22,
-      reps: 8,
     });
     // feeling easy doesn't skip past missed reps
     expect(suggestNext([point([[100, 5]], "easy")], six, 5)?.action).toBe("hold");
   });
 
-  it("progresses reps for bodyweight work", () => {
-    expect(suggestNext([point([[0, 15], [0, 15]])], parseRepTarget("15"), 0)).toMatchObject({
-      action: "reps",
-      weight: 0,
-      reps: 16,
-    });
-    expect(suggestNext([point([[0, 10], [0, 8]])], range, 0)).toMatchObject({ reps: 9 });
+  it("says nothing for bodyweight work or a zero increment", () => {
+    expect(suggestNext([point([[0, 15], [0, 15]])], parseRepTarget("15"), 0)).toBeNull();
+    expect(suggestNext([point([[0, 15], [0, 15]])], parseRepTarget("15"), 2.5)).toBeNull();
+    expect(suggestNext([point([[30, 12]])], range, 0)).toBeNull();
   });
 
   it("uses last time's reps as the target when there's no plan", () => {
     expect(suggestNext([point([[50, 10], [50, 10]])], null, 2.5)).toMatchObject({
       action: "increase",
       weight: 52.5,
-      reps: 10,
     });
-  });
-
-  it("adds reps instead of weight when the increment is 0", () => {
-    expect(suggestNext([point([[30, 12]])], range, 0)).toMatchObject({ action: "reps", weight: 30, reps: 13 });
   });
 
   it("returns nothing for timed work or no history", () => {

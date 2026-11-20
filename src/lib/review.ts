@@ -67,7 +67,7 @@ export const ReviewOutputSchema = z.object({
     ),
   nextTime: z
     .array(z.object({ exercise: z.string(), advice: z.string() }))
-    .describe("1-5 concrete changes for next time (weights, reps, rest, setup), one per exercise"),
+    .describe("1-5 concrete changes for next time (weight, rest, setup, technique; never reps), one per exercise"),
 });
 export type ReviewOutput = z.infer<typeof ReviewOutputSchema>;
 
@@ -169,7 +169,9 @@ export function buildReviewRequest(
 
 /* ---------- prompt ---------- */
 
-export const REVIEW_SYSTEM = `You are an experienced strength coach reviewing a client's workout straight after they finish it, inside their training app. The client logs every set; the app has already worked out personal bests, comparisons with last time and simple progression rules (double progression: hit the top of the rep range on every set, then add the smallest weight step).
+export const REVIEW_SYSTEM = `You are an experienced strength coach reviewing a client's workout straight after they finish it, inside their training app. The client logs every set; the app has already worked out personal bests, comparisons with last time and simple weight-only progression rules (hit the top of the rep target on every set, then add the smallest weight step; miss it three sessions running, then drop about 10%).
+
+Reps are fixed by the programme. Never suggest changing the number of reps or sets; when you advise on load, change only the weight (or say to keep it). Rest, setup, tempo and technique advice is fine.
 
 Write like a good coach talking to the client after the session: specific, warm but not gushing, in plain UK English, using kg. Ground every point in the numbers or notes you were given; never invent sets, history or feelings. No generic motivation.
 

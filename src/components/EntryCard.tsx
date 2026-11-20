@@ -81,9 +81,8 @@ export function EntryCard({
   const grid = timed ? TIMED_GRID : SET_GRID;
   const s = plan?.suggestion;
   const open = entry.sets.filter((x) => !x.done && x.kind !== "warmup");
-  const weightChange = s && (s.action === "increase" || s.action === "deload");
-  const applied =
-    !s || open.every((x) => x.reps === s.reps && (!weightChange || x.weight === s.weight));
+  // only weight changes are offered; reps always stay as planned
+  const applied = !s || s.action === "hold" || open.every((x) => x.weight === s.weight);
   const anyDone = entry.sets.some((x) => x.done);
   const barbell = !timed && isBarbell(entry.exercise);
 
@@ -151,8 +150,7 @@ export function EntryCard({
                 edit((e) => {
                   for (const x of e.sets) {
                     if (x.done || x.kind === "warmup") continue;
-                    x.reps = s.reps;
-                    if (weightChange) x.weight = s.weight;
+                    x.weight = s.weight;
                   }
                 })
               }

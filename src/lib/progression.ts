@@ -1,15 +1,17 @@
 import type { Effort, SetLog } from "./types";
 
 /**
- * Progression suggestions: what to lift next time, from what was lifted last time. Pure functions
- * only (no IndexedDB) so the rules stay unit-tested.
+ * Progression suggestions: what weight to lift next time, from what was lifted last time. Pure
+ * functions only (no IndexedDB) so the rules stay unit-tested.
  *
- * The rules are classic double progression:
- * - every working set hit the top of the rep range → add one weight increment, reps back to the bottom
- * - sets landed inside the range → same weight, aim for one more rep
- * - missed the bottom of the range → hold; three sessions running → deload ~10%
+ * Suggestions only ever change the weight. Reps stay as programmed (and as prefilled from last
+ * time); the owner doesn't want the app nudging rep counts.
+ * - every working set hit the top of the rep target → add one weight increment
+ * - sets landed inside a range, short of the top → hold the weight
+ * - missed the bottom of the target → hold; three sessions running → deload ~10%
  * An optional per-exercise effort (Easy / Good / Hard) nudges it: Easy moves up as soon as every
  * set is in range, Hard repeats a top-of-range session once before moving up.
+ * Bodyweight work, timed work and exercises with no weight step get no suggestion.
  */
 
 export interface RepTarget {
@@ -43,17 +45,15 @@ export interface ProgressPoint {
   e1rm: number;
 }
 
-export type SuggestionAction = "increase" | "reps" | "hold" | "deload";
+export type SuggestionAction = "increase" | "hold" | "deload";
 
 export interface Suggestion {
   action: SuggestionAction;
-  /** kg per set (0 for bodyweight work) */
+  /** kg per working set; reps are never suggested */
   weight: number;
-  /** reps to aim for on every set */
-  reps: number;
   /** short human reason, e.g. "Hit 4×8 at 60 kg last time" */
   reason: string;
-  /** sessions in a row that fell short of the rep range (hold / deload only) */
+  /** sessions in a row that fell short of the rep target (hold / deload only) */
   missStreak?: number;
 }
 
@@ -63,9 +63,9 @@ const tidy = (n: number) => Math.round(n * 100) / 100;
 const kg = (n: number) => `${tidy(n)} kg`;
 
 /**
- * Suggests the next session's weight and reps from `history` (oldest first; pass the same day
- * variant's history when there is one, so heavy weeks follow heavy weeks). `increment` is the
- * smallest sensible jump for the equipment (0 = can't add weight, progress reps instead).
+ * Suggests the next session's weight from `history` (oldest first; pass the same day variant's
+ * history when there is one, so heavy weeks follow heavy weeks). `increment` is the smallest
+ * sensible jump for the equipment (0 = can't add weight, so no suggestion).
  */
 export function suggestNext(
   history: ProgressPoint[],
@@ -73,39 +73,25 @@ export function suggestNext(
   increment: number,
 ): Suggestion | null {
   const last = history.at(-1);
-  if (!last || !last.sets.length || target?.timed) return null;
+  if (!last || !last.sets.length || target?.timed || increment <= 0) return null;
 
   const sets = last.sets;
   const top = Math.max(...sets.map((s) => s.weight));
+  // bodyweight work: nothing to put on the bar
+  if (top <= 0) return null;
+
   const reps = sets.map((s) => s.reps);
   const lowest = Math.min(...reps);
   // without a planned range, treat last time's lowest set as the target
   const min = target?.min ?? lowest;
   const max = target?.max ?? lowest;
 
-  if (top <= 0) {
-    // bodyweight: progress reps, a little past the range is fine
-    const allTop = reps.every((r) => r >= max);
-    return {
-      action: "reps",
-      weight: 0,
-      reps: allTop ? max + 1 : Math.min(lowest + 1, max),
-      reason: allTop
-        ? `Hit ${max}+ on every set: add a rep or make it harder`
-        : `Aim for ${Math.min(lowest + 1, max)} on every set`,
-    };
-  }
-
   const atTop = sets.every((s) => s.weight >= top);
   const hitMax = atTop && reps.every((r) => r >= max);
   const inRange = atTop && reps.every((r) => r >= min);
   const missed = reps.some((r) => r < min);
-  const step = increment > 0 ? increment : 0;
 
-  const increase = (why: string): Suggestion =>
-    step > 0
-      ? { action: "increase", weight: tidy(top + step), reps: min, reason: why }
-      : { action: "reps", weight: top, reps: max + 1, reason: `${why}; add a rep` };
+  const increase = (reason: string): Suggestion => ({ action: "increase", weight: tidy(top + increment), reason });
 
   if (hitMax) {
     // a top-of-range session that felt hard gets repeated once before moving up
@@ -116,7 +102,6 @@ export function suggestNext(
       return {
         action: "hold",
         weight: top,
-        reps: max,
         reason: `Hit ${sets.length}×${max} at ${kg(top)} but it felt hard: repeat it once`,
       };
     }
@@ -128,7 +113,7 @@ export function suggestNext(
   }
 
   if (missed) {
-    // count how many sessions in a row fell short of the range at this weight or more
+    // count how many sessions in a row fell short of the target at this weight or more
     let streak = 0;
     for (let i = history.length - 1; i >= 0; i--) {
       const p = history[i];
@@ -137,11 +122,10 @@ export function suggestNext(
       else break;
     }
     if (streak >= 3) {
-      const down = step > 0 ? Math.floor((top * 0.9) / step) * step : Math.round(top * 0.9 * 2) / 2;
+      const down = Math.floor((top * 0.9) / increment) * increment;
       return {
         action: "deload",
         weight: tidy(Math.max(down, 0)),
-        reps: min,
         reason: `Short of ${min} reps ${streak} sessions running: drop ~10% and build back`,
         missStreak: streak,
       };
@@ -149,22 +133,19 @@ export function suggestNext(
     return {
       action: "hold",
       weight: top,
-      reps: min,
       reason:
         streak === 2
-          ? `Short of ${min} reps twice at ${kg(top)}: hold and get every set to ${min}`
-          : `Stay at ${kg(top)} and get every set to ${min}`,
+          ? `Short of ${min} reps twice at ${kg(top)}: stay at this weight`
+          : `Short of ${min} reps last time: stay at ${kg(top)}`,
       missStreak: streak,
     };
   }
 
-  // in range (or a pyramid that dropped weight): same top weight, one more rep, capped at the top
-  const aim = Math.min(lowest + 1, max);
+  // in range but short of the top (or a pyramid that dropped weight): same weight
   return {
-    action: "reps",
+    action: "hold",
     weight: top,
-    reps: aim,
-    reason: `Stay at ${kg(top)} and aim for ${aim} on every set`,
+    reason: `Stay at ${kg(top)} until every set reaches ${max}`,
   };
 }
 
@@ -191,7 +172,7 @@ export function defaultIncrement(name: string, equipment?: string | null): numbe
 
 /** Short arrow + label for a suggestion, used on chips. */
 export function suggestionLabel(s: Suggestion): string {
-  const what = s.weight > 0 ? `${tidy(s.weight)} kg × ${s.reps}` : `${s.reps} reps`;
+  const what = `${tidy(s.weight)} kg`;
   switch (s.action) {
     case "increase":
       return `↑ ${what}`;

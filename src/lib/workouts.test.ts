@@ -222,7 +222,7 @@ describe("planning the next session", () => {
       increment: 2.5,
     });
     expect(plan.last?.date).toBe(recentHeavy.startedAt);
-    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 32.5, reps: 6 });
+    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 32.5 });
   });
 
   it("prefills a heavy day with exactly what was lifted last heavy day", () => {
@@ -232,7 +232,7 @@ describe("planning the next session", () => {
       increment: 5,
     });
     expect(plan.last?.topWeight).toBe(100);
-    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 105, reps: 6 });
+    expect(plan.suggestion).toMatchObject({ action: "increase", weight: 105 });
     // the increase is offered as a suggestion, not filled in
     expect(prefillSets(4, plan, "4×6")).toEqual(
       Array.from({ length: 4 }, () => ({ weight: 100, reps: 6, done: false })),
@@ -253,7 +253,7 @@ describe("planning the next session", () => {
       { exercise: "Bench", sets: [set(80, 9), set(80, 8), set(75, 8)] },
     ]);
     const plan = planExercise([pyramid], "Bench", { target: "3×8-10", increment: 2.5 });
-    expect(plan.suggestion?.action).toBe("reps");
+    expect(plan.suggestion?.action).toBe("hold");
     expect(prefillSets(3, plan, "3×8-10").map((s) => [s.weight, s.reps])).toEqual([
       [80, 9],
       [80, 8],

@@ -59,7 +59,8 @@ Tailwind), so keep the code idiomatic and conventional.
   exercise). Tapping the thumbnail on a session card opens `ExerciseModal`. Video: YouTube search link, or a user-pasted
   YouTube/Vimeo link stored in `settings` (`exerciseVideos`). Unknown exercises get no description but keep the video options.
 - Training loop (all pure helpers unit-tested):
-  - `src/lib/progression.ts`: `parseRepTarget`, `suggestNext` (double progression + effort nudge + miss streak/deload),
+  - `src/lib/progression.ts`: `parseRepTarget`, `suggestNext` (**weight only, never reps**: top of the rep target on
+    every set → +increment, in range → hold, effort nudge, miss streak → deload; none for bodyweight/timed/zero step),
     `defaultIncrement` by equipment; `incrementFor` (exercises.ts) applies per-exercise overrides from
     `settings.exerciseIncrements` (keyed by `exerciseKey`).
   - `workouts.ts`: names match via `exerciseKey` (case/punctuation-insensitive, so imported history joins up);

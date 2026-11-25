@@ -95,6 +95,31 @@ describe("weekPlan", () => {
   });
 });
 
+describe("a pushed-back week", () => {
+  // week 4 (23–29 Nov) pushed back: nothing is due, and week 4 runs 30 Nov – 6 Dec instead
+  const pushed: Programme = {
+    ...PHASE_6_PROGRAMME,
+    phase: { ...PHASE_6_PROGRAMME.phase!, paused: ["2026-11-23"] },
+  };
+
+  it("has nothing due in the paused week", () => {
+    const plan = weekPlan(pushed, [], at("2026-11-25"));
+    expect(plan.paused).toBe(true);
+    expect(plan.next).toBeUndefined();
+    expect(plan.days.map((d) => d.name)).toContain("Session 1 · Heavy");
+    expect(trainingWeekStart(pushed, at("2026-11-25"))).toBe("2026-11-23");
+  });
+
+  it("runs the moved week next, ignoring sessions logged while paused", () => {
+    const now = at("2026-12-02");
+    expect(trainingWeekStart(pushed, now)).toBe("2026-11-30");
+    const plan = weekPlan(pushed, [done("2026-11-24", "Session 1 · Heavy")], now);
+    expect(plan.paused).toBe(false);
+    expect(plan.next?.name).toBe("Session 1 · Heavy");
+    expect(plan.done).toEqual([]);
+  });
+});
+
 describe("activeProgramme", () => {
   const undated: Programme = { name: "Home", days: [] };
   const old: Programme = { name: "Old", days: [], phase: { start: "2026-01-05", weeks: 4 } };

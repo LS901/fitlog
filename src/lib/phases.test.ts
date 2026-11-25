@@ -8,7 +8,10 @@ import {
   phaseEnd,
   phaseError,
   phaseState,
+  phaseSlot,
   phaseWeek,
+  pushWeekBack,
+  resumeWeek,
   suggestedPhaseStart,
 } from "./phases";
 import type { Programme } from "./types";
@@ -119,5 +122,51 @@ describe("nextPhasePrompt", () => {
     const p7 = prog("Phase 7", { start: "2026-12-28", weeks: 6 });
     expect(nextPhasePrompt([p6, p7], at("2026-12-20"))).toBeUndefined();
     expect(nextPhasePrompt([prog("Home")], at("2026-12-20"))).toBeUndefined();
+  });
+});
+
+describe("pushing a week back", () => {
+  // week 4 (23–29 Nov, heavy) can't happen: it moves to 30 Nov and the phase ends a week later
+  const pushed = pushWeekBack(phase6, at("2026-11-25"));
+
+  it("records the current slot and extends the end", () => {
+    expect(pushed.paused).toEqual(["2026-11-23"]);
+    expect(phaseEnd(pushed)).toBe("2027-01-03");
+  });
+
+  it("leaves earlier weeks alone, pauses this one and shifts the rest", () => {
+    expect(phaseWeek(pushed, at("2026-11-18"))).toEqual({ week: 3, focus: "volume" });
+    expect(phaseWeek(pushed, at("2026-11-25"))).toEqual({ week: 4, focus: "heavy", paused: true });
+    expect(phaseWeek(pushed, at("2026-11-30"))).toEqual({ week: 4, focus: "heavy" });
+    expect(phaseWeek(pushed, at("2026-12-07"))).toEqual({ week: 5, focus: "volume" });
+    expect(phaseWeek(pushed, at("2027-01-03"))).toEqual({ week: 8, focus: "heavy" });
+    expect(phaseWeek(pushed, at("2027-01-04"))).toBeNull();
+    expect(phaseSlot(pushed, at("2026-12-02"))).toEqual({
+      slot: 4,
+      slotStart: "2026-11-30",
+      week: 4,
+      paused: false,
+    });
+  });
+
+  it("keeps the phase active until the new end", () => {
+    expect(phaseState(pushed, at("2026-12-28"))).toMatchObject({ state: "active", week: 8, daysLeft: 6 });
+    expect(phaseState(pushed, at("2026-11-25"))).toMatchObject({ state: "active", paused: true });
+    expect(suggestedPhaseStart([prog("P6", pushed)], at("2026-12-20"))).toBe("2027-01-04");
+  });
+
+  it("is a no-op when already paused or not running, and resume undoes it", () => {
+    expect(pushWeekBack(pushed, at("2026-11-27"))).toBe(pushed);
+    expect(pushWeekBack(phase6, at("2026-10-30"))).toBe(phase6);
+    expect(resumeWeek(pushed, at("2026-11-25"))).toEqual(phase6);
+    expect(resumeWeek(pushed, at("2026-11-30"))).toBe(pushed);
+  });
+
+  it("can push back twice, including the following week", () => {
+    const twice = pushWeekBack(pushed, at("2026-11-30"));
+    expect(twice.paused).toEqual(["2026-11-23", "2026-11-30"]);
+    expect(phaseEnd(twice)).toBe("2027-01-10");
+    expect(phaseWeek(twice, at("2026-12-07"))).toEqual({ week: 4, focus: "heavy" });
+    expect(resumeWeek(twice, at("2026-11-30")).paused).toEqual(["2026-11-23"]);
   });
 });

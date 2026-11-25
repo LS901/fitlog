@@ -9,12 +9,16 @@ import {
   addDays,
   phaseEnd,
   phaseError,
+  phaseSlot,
   phaseState,
+  pushWeekBack,
+  resumeWeek,
   suggestedPhaseStart,
 } from "@/lib/phases";
 import { exerciseProgressHref } from "@/lib/exercises";
 import { dayHref, warmupDay, weekPlan, type WeekPlan } from "@/lib/schedule";
 import { staleFinish } from "@/lib/timing";
+import { showToast } from "@/lib/toast";
 import { useSetting } from "@/lib/useSetting";
 import { computePRs, doneSets, sessionVolume, type PR } from "@/lib/workouts";
 import type { Programme, ProgrammeDay, WorkoutSession } from "@/lib/types";
@@ -69,6 +73,7 @@ export default function WorkoutsPage() {
           key={p.id}
           programme={p}
           sessions={sessions ?? []}
+          all={programmes ?? []}
           onEdit={() => setEditing(p)}
         />
       ))}
@@ -199,6 +204,8 @@ function phaseSummary(phase: NonNullable<Programme["phase"]>) {
   if (s.state === "upcoming")
     return `Starts ${dayLabel(phase.start)} (in ${s.daysUntil} day${s.daysUntil === 1 ? "" : "s"}) · ${phase.weeks} weeks`;
   if (s.state === "ended") return `${dayLabel(phase.start)} – ${dayLabel(phaseEnd(phase))} · finished`;
+  if (s.paused)
+    return `Paused this week · week ${s.week} starts ${dayLabel(addDays(phaseSlot(phase)!.slotStart, 7))} · ends ${dayLabel(phaseEnd(phase))}`;
   return [
     `Week ${s.week} of ${phase.weeks}`,
     s.focus && `${s.focus} week`,
@@ -211,12 +218,16 @@ function phaseSummary(phase: NonNullable<Programme["phase"]>) {
 function ProgrammeCard({
   programme: p,
   sessions,
+  all = [],
   onEdit,
 }: {
   programme: Programme;
   sessions: WorkoutSession[];
+  /** every programme, to warn when pushing a week back runs into the next phase */
+  all?: Programme[];
   onEdit: () => void;
 }) {
+
   const state = p.phase ? phaseState(p.phase) : undefined;
   // a running phase or an undated programme gets this week's view; upcoming/past phases list every day
   const plan: WeekPlan | undefined =
@@ -266,7 +277,7 @@ function ProgrammeCard({
           }`}
         >
           {phaseSummary(p.phase)}
-          {plan && plan.days.length > 0 && (
+          {plan && plan.days.length > 0 && !plan.paused && (
             <span className="text-zinc-400">
               {" "}
               · {plan.done.length} of {plan.days.length} done
@@ -274,6 +285,7 @@ function ProgrammeCard({
           )}
         </p>
       )}
+      {state?.state === "active" && <PushWeekBack programme={p} all={all} />}
       {(p.summary || p.notes?.length) && (
         <details className="mb-3">
           <summary className="cursor-pointer text-xs text-zinc-400">About this phase</summary>
@@ -288,7 +300,7 @@ function ProgrammeCard({
         </details>
       )}
       <div className="space-y-2">{(plan ? plan.days : p.days).map(dayButton)}</div>
-      {plan && plan.days.length > 0 && !plan.next && (
+      {plan && plan.days.length > 0 && !plan.next && !plan.paused && (
         <p className="mt-2 text-xs text-emerald-400">Week complete. Nice work.</p>
       )}
       {plan && plan.other.length > 0 && (
@@ -311,6 +323,79 @@ function ProgrammeCard({
         </label>
       )}
     </Card>
+  );
+}
+
+/** "Can't train this week?": pushes the running phase's week back (and the end with it), or undoes it. */
+function PushWeekBack({ programme: p, all }: { programme: Programme; all: Programme[] }) {
+  const [confirming, setConfirming] = useState(false);
+  const phase = p.phase!;
+  const slot = phaseSlot(phase);
+  if (!slot || !p.id) return null;
+  const id = p.id;
+  const save = (next: Programme["phase"]) => db.programmes.update(id, { phase: next });
+
+  if (slot.paused)
+    return (
+      <button
+        className="-mt-1 mb-3 text-xs text-zinc-400 underline underline-offset-2"
+        onClick={async () => {
+          await save(resumeWeek(phase));
+          showToast(`Week ${slot.week} is back on this week`, () => save(phase));
+        }}
+      >
+        Resume this week
+      </button>
+    );
+
+  if (!confirming)
+    return (
+      <button
+        className="-mt-1 mb-3 text-xs text-zinc-400 underline underline-offset-2"
+        onClick={() => setConfirming(true)}
+      >
+        Can&apos;t train this week? Push it back
+      </button>
+    );
+
+  const pushed = pushWeekBack(phase);
+  const newEnd = phaseEnd(pushed);
+  const nextStart = addDays(slot.slotStart, 7);
+  const clash = all.find(
+    (o) =>
+      o.id !== id &&
+      o.phase &&
+      phaseState(o.phase).state === "upcoming" &&
+      o.phase.start <= newEnd,
+  );
+  return (
+    <div className="mb-3 space-y-2 rounded-xl border border-zinc-800 p-3 text-sm">
+      <p>
+        Week {slot.week} moves to {dayLabel(nextStart)} – {dayLabel(addDays(nextStart, 6))} and{" "}
+        {p.name} ends {dayLabel(newEnd)} instead of {dayLabel(phaseEnd(phase))}. Anything you log
+        this week won&apos;t count toward a phase week.
+      </p>
+      {clash && (
+        <p className="text-xs text-amber-400">
+          {clash.name} starts {dayLabel(clash.phase!.start)}: move its start date too.
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          className={btnCls}
+          onClick={async () => {
+            await save(pushed);
+            setConfirming(false);
+            showToast(`Week ${slot.week} pushed to ${dayLabel(nextStart)}`, () => save(phase));
+          }}
+        >
+          Push back a week
+        </button>
+        <button className={btnGhostCls} onClick={() => setConfirming(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -344,7 +429,9 @@ function ProgrammeEditor({
     if (dated) {
       const err = phaseError(start, Number(weeks));
       if (err) return setError(err);
-      phase = { start, weeks: Number(weeks), alternate };
+      // pushed-back weeks only line up with the start they were made against
+      const paused = start === programme?.phase?.start ? programme.phase.paused : undefined;
+      phase = { start, weeks: Number(weeks), alternate, ...(paused?.length && { paused }) };
     }
     if (programme?.id) await db.programmes.update(programme.id, { name, days, phase });
     else await db.programmes.add({ name, days, phase });
@@ -424,7 +511,14 @@ function ProgrammeEditor({
               </label>
               {!phaseError(start, weeksN) && (
                 <p className="text-xs text-zinc-500">
-                  {dayLabel(start)} – {dayLabel(addDays(start, weeksN * 7 - 1))}
+                  {dayLabel(start)} –{" "}
+                  {dayLabel(
+                    phaseEnd({
+                      start,
+                      weeks: weeksN,
+                      paused: start === programme?.phase?.start ? programme.phase.paused : undefined,
+                    }),
+                  )}
                 </p>
               )}
             </>

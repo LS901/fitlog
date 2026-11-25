@@ -71,8 +71,11 @@ function DayPreview() {
         <h1 className="text-2xl font-semibold">{day.name}</h1>
         <p className="text-xs text-zinc-500">
           {programme.name}
-          {state?.state === "active" && ` · week ${state.week} of ${programme.phase!.weeks}`}
-          {state?.state === "active" && state.focus && ` · ${state.focus} week`}
+          {state?.state === "active" &&
+            (state.paused
+              ? " · paused this week (won't count toward a phase week)"
+              : ` · week ${state.week} of ${programme.phase!.weeks}`)}
+          {state?.state === "active" && !state.paused && state.focus && ` · ${state.focus} week`}
         </p>
       </div>
 

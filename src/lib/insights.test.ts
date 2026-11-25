@@ -110,6 +110,16 @@ describe("phaseReport", () => {
     expect(r.lifts[0].change).toBeCloseTo(6);
   });
 
+  it("doesn't count a pushed-back week as planned", () => {
+    const pushed = {
+      ...PHASE_6_PROGRAMME,
+      phase: { ...PHASE_6_PROGRAMME.phase!, paused: ["2026-11-23"] },
+    };
+    expect(phaseReport(pushed, [], [], "2026-11-25")!).toMatchObject({ weeksElapsed: 3, planned: 9 });
+    expect(phaseReport(pushed, [], [], "2026-12-01")!).toMatchObject({ weeksElapsed: 4, planned: 12 });
+    expect(phaseReport(pushed, [], [], "2027-02-01")!.weeksElapsed).toBe(8);
+  });
+
   it("has nothing before the phase starts", () => {
     expect(phaseReport(PHASE_6_PROGRAMME, [], [], "2026-10-01")).toBeUndefined();
   });

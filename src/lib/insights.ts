@@ -1,6 +1,6 @@
 import { findExercise } from "./exercises";
 import { localDay } from "./nutrition";
-import { addDays, dayDiff, phaseEnd } from "./phases";
+import { addDays, phaseEnd, phaseSlot } from "./phases";
 import { isWarmupDay, mondayOf } from "./schedule";
 import type { Programme, ProgrammeDay, WorkoutSession } from "./types";
 import { exerciseHistory, isWorking, knownExerciseNames, planExercise, sameExercise } from "./workouts";
@@ -199,7 +199,9 @@ export function phaseReport(
   const end = phaseEnd(p.phase);
   if (today < start) return undefined;
   const until = today < end ? today : end;
-  const weeksElapsed = Math.min(p.phase.weeks, Math.floor(dayDiff(start, until) / 7) + 1);
+  // paused weeks don't count; in one, only the weeks before it have elapsed
+  const slot = phaseSlot(p.phase, new Date(`${until}T12:00:00`))!;
+  const weeksElapsed = Math.min(p.phase.weeks, slot.paused ? slot.week - 1 : slot.week);
   const dayNames = new Set(p.days.filter((d) => !isWarmupDay(d)).map((d) => d.name));
   const inPhase = sessions.filter((s) => {
     if (!s.finishedAt) return false;

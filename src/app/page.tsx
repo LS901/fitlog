@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { MEASURES, fmt, shortDate } from "@/lib/measures";
 import { exerciseProgressHref } from "@/lib/exercises";
 import { localDay } from "@/lib/nutrition";
-import { currentPhaseProgramme, phaseWeek } from "@/lib/phases";
+import { addDays, currentPhaseProgramme, phaseWeek } from "@/lib/phases";
 import { weekStreak } from "@/lib/insights";
 import { activeProgramme, dayHref, trainingWeekStart, weekPlan } from "@/lib/schedule";
 import { staleFinish } from "@/lib/timing";
@@ -72,8 +72,15 @@ export default function Home() {
         </h1>
         {pw && phaseProg && (
           <p className="text-sm text-zinc-400">
-            {phaseProg.name} · week {pw.week} of {phaseProg.phase!.weeks}
-            {pw.focus && (
+            {phaseProg.name} ·{" "}
+            {pw.paused ? (
+              <span className="text-amber-400">paused this week</span>
+            ) : (
+              <>
+                week {pw.week} of {phaseProg.phase!.weeks}
+              </>
+            )}
+            {!pw.paused && pw.focus && (
               <>
                 {" "}
                 · <span className="text-emerald-400">{pw.focus} week</span>
@@ -93,6 +100,22 @@ export default function Home() {
           </div>
           <div className="text-lg font-semibold">
             Resume {inProgress.dayName ?? "workout"} →
+          </div>
+        </Link>
+      ) : plan?.paused ? (
+        <Link
+          href="/workouts"
+          className="block rounded-2xl bg-zinc-900 p-4 text-zinc-100 active:bg-zinc-800"
+        >
+          <div className="text-xs font-medium text-zinc-400">Week paused · nothing due</div>
+          <div className="text-lg font-semibold">
+            Week {phaseWeek(plan.programme.phase)?.week} starts{" "}
+            {new Date(`${addDays(weekStart, 7)}T12:00:00`).toLocaleDateString("en-GB", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+            })}{" "}
+            →
           </div>
         </Link>
       ) : plan?.next ? (

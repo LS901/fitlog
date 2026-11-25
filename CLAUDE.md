@@ -30,6 +30,10 @@ Tailwind), so keep the code idiomatic and conventional.
 - Phases: any programme can be a dated phase (`Programme.phase = { start, weeks, alternate? }`, set in the programme
   editor). All date maths lives in `src/lib/phases.ts` (local YYYY-MM-DD days, DST-safe); `alternate` defaults to on
   (odd weeks volume, even heavy). Train lists running/upcoming phases first and tucks finished ones under "Past phases".
+  "Can't train this week? Push it back" on a running phase's Train card adds the current 7-day slot's start to
+  `phase.paused`: that slot counts as no phase week (`phaseSlot`/`phaseWeek` report `paused`, `weekPlan` has nothing
+  due), later weeks keep their heavy/volume order and `phaseEnd` moves back a week per paused slot. Resume/Undo
+  removes it; editing the start date drops `paused`.
 - Phase generator (`/workouts/plan`, `src/app/api/plan/route.ts`, pure helpers in `src/lib/plan.ts`): the page builds a
   compact 12-week training summary (`buildTrainingSummary`) plus the user's brief and POSTs it; the route validates with
   zod (`PlanRequestSchema`), calls Claude Opus 5.5 (`claude-opus-5-5`, effort high, server-side refusal fallback) with

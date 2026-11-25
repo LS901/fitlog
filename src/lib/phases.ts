@@ -29,27 +29,79 @@ export function addDays(day: string, n: number) {
   return localDay(new Date(y, m - 1, d + n, 12));
 }
 
-/** Last day of the phase (inclusive). */
-export const phaseEnd = (p: Phase) => addDays(p.start, p.weeks * 7 - 1);
+/** Last day of the phase (inclusive), pushed back a week per paused week. */
+export const phaseEnd = (p: Phase) =>
+  addDays(p.start, (p.weeks + (p.paused?.length ?? 0)) * 7 - 1);
 
 /** Phases alternate volume (odd weeks) and heavy (even weeks) unless `alternate` is false. */
 const alternates = (p: Phase) => p.alternate !== false;
 
-/** 1-based week of the phase for a date, with that week's focus, or null outside the phase. */
+const weekFocus = (p: Phase, week: number): WeekFocus | undefined =>
+  alternates(p) ? (week % 2 === 1 ? "volume" : "heavy") : undefined;
+
+export interface PhaseSlot {
+  /** 0-based 7-day slot since the start, counting paused slots */
+  slot: number;
+  /** first day of the slot (YYYY-MM-DD) */
+  slotStart: string;
+  /** 1-based phase week; in a paused slot, the week that resumes next */
+  week: number;
+  /** this slot was pushed back: nothing is due */
+  paused: boolean;
+}
+
+/** The 7-day slot of the phase a date falls in, or null outside the phase. */
+export function phaseSlot(phase: Programme["phase"], now = new Date()): PhaseSlot | null {
+  if (!phase) return null;
+  const d = dayDiff(phase.start, localDay(now));
+  if (d < 0 || localDay(now) > phaseEnd(phase)) return null;
+  const slot = Math.floor(d / 7);
+  const slotStart = addDays(phase.start, slot * 7);
+  const pausedBefore = (phase.paused ?? []).filter((p) => p < slotStart).length;
+  return {
+    slot,
+    slotStart,
+    week: slot + 1 - pausedBefore,
+    paused: !!phase.paused?.includes(slotStart),
+  };
+}
+
+/**
+ * 1-based week of the phase for a date, with that week's focus, or null outside the phase. In a
+ * paused week, `paused` is set and `week`/`focus` describe the week that resumes next.
+ */
 export function phaseWeek(
   phase: Programme["phase"],
   now = new Date(),
-): { week: number; focus?: WeekFocus } | null {
-  if (!phase) return null;
-  const d = dayDiff(phase.start, localDay(now));
-  const week = Math.floor(d / 7) + 1;
-  if (d < 0 || week > phase.weeks) return null;
-  return alternates(phase) ? { week, focus: week % 2 === 1 ? "volume" : "heavy" } : { week };
+): { week: number; focus?: WeekFocus; paused?: true } | null {
+  const s = phaseSlot(phase, now);
+  if (!s) return null;
+  const focus = weekFocus(phase!, s.week);
+  return { week: s.week, ...(focus && { focus }), ...(s.paused && { paused: true as const }) };
+}
+
+/**
+ * The phase with the current week pushed back a week ("can't train this week"), or the phase
+ * unchanged when it isn't running today or this week is already paused.
+ */
+export function pushWeekBack(phase: Phase, now = new Date()): Phase {
+  const s = phaseSlot(phase, now);
+  if (!s || s.paused) return phase;
+  return { ...phase, paused: [...(phase.paused ?? []), s.slotStart].sort() };
+}
+
+/** Undoes `pushWeekBack` for the current week: it counts as a phase week again. */
+export function resumeWeek(phase: Phase, now = new Date()): Phase {
+  const s = phaseSlot(phase, now);
+  if (!s?.paused) return phase;
+  const next: Phase = { ...phase, paused: phase.paused!.filter((p) => p !== s.slotStart) };
+  if (!next.paused!.length) delete next.paused;
+  return next;
 }
 
 export type PhaseState =
   | { state: "upcoming"; daysUntil: number }
-  | { state: "active"; week: number; focus?: WeekFocus; daysLeft: number }
+  | { state: "active"; week: number; focus?: WeekFocus; paused?: true; daysLeft: number }
   | { state: "ended"; daysAgo: number };
 
 export function phaseState(phase: Phase, now = new Date()): PhaseState {

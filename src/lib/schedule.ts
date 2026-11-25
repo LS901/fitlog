@@ -1,5 +1,5 @@
 import { localDay } from "./nutrition";
-import { addDays, currentPhaseProgramme, phaseState, phaseWeek } from "./phases";
+import { addDays, currentPhaseProgramme, phaseSlot, phaseState, phaseWeek } from "./phases";
 import type { Programme, ProgrammeDay, WorkoutSession } from "./types";
 
 /** "Warm-up & mobility" and the like: run before a session rather than as one. */
@@ -23,8 +23,7 @@ export function mondayOf(day: string) {
  * start on any day), else Monday.
  */
 export function trainingWeekStart(programme: Programme | undefined, now = new Date()) {
-  const pw = programme?.phase ? phaseWeek(programme.phase, now) : null;
-  return pw ? addDays(programme!.phase!.start, (pw.week - 1) * 7) : mondayOf(localDay(now));
+  return phaseSlot(programme?.phase, now)?.slotStart ?? mondayOf(localDay(now));
 }
 
 export interface WeekPlan {
@@ -33,8 +32,10 @@ export interface WeekPlan {
   days: ProgrammeDay[];
   /** names of `days` already finished this week */
   done: string[];
-  /** first of `days` not done yet; undefined when the week is complete */
+  /** first of `days` not done yet; undefined when the week is complete or paused */
   next?: ProgrammeDay;
+  /** this week was pushed back: nothing is due, `days` are the week that resumes next */
+  paused: boolean;
   /** days that belong to other weeks (the off-week variant), plus the warm-up */
   other: ProgrammeDay[];
 }
@@ -65,7 +66,8 @@ export function weekPlan(
     programme,
     days,
     done,
-    next: days.find((d) => !done.includes(d.name)),
+    next: pw?.paused ? undefined : days.find((d) => !done.includes(d.name)),
+    paused: !!pw?.paused,
     other: programme.days.filter((d) => !days.includes(d)),
   };
 }

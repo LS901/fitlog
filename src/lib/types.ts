@@ -61,9 +61,11 @@ export interface Programme {
   days: ProgrammeDay[];
   /**
    * Optional dated phase (see `src/lib/phases.ts`). `start` is a local YYYY-MM-DD (a Monday by
-   * default). Unless `alternate` is false, odd weeks are volume and even weeks are heavy.
+   * default). Unless `alternate` is false, odd weeks are volume and even weeks are heavy. `paused`
+   * lists the start days of 7-day slots that were pushed back ("can't train this week"): those
+   * slots don't count as phase weeks, so later weeks and the end date move back a week each.
    */
-  phase?: { start: string; weeks: number; alternate?: boolean };
+  phase?: { start: string; weeks: number; alternate?: boolean; paused?: string[] };
   /** what the user asked for when this programme was generated, to prefill the next one */
   brief?: PhaseBrief;
   /** generator's explanation of the phase */

@@ -133,7 +133,9 @@ export function buildReviewRequest(
       programme: clip(session.programmeName, 120),
       phase:
         pw && programme?.phase
-          ? `week ${pw.week} of ${programme.phase.weeks}${pw.focus ? ` (${pw.focus} week)` : ""}`
+          ? pw.paused
+            ? `paused week, before week ${pw.week} of ${programme.phase.weeks}`
+            : `week ${pw.week} of ${programme.phase.weeks}${pw.focus ? ` (${pw.focus} week)` : ""}`
           : undefined,
       minutes: summary.minutes !== undefined ? Math.min(1440, Math.max(0, summary.minutes)) : undefined,
       pace: t
